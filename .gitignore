@@ -1,8 +1,6 @@
-app
-contour.txt
-*.png
-.vscode
-output
 .DS_Store
+output
 obj
 bin
+data
+.vscode

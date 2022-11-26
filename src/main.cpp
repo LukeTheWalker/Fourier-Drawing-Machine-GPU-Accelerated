@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     Size src_size = src.size();
     int src_type = CV_8UC1;
 
-    Thresholds threshold = get_treshold("contour.txt", src);
+    Thresholds threshold = get_treshold("data/contour.txt", src);
 
     vector<vp> points;
     apply_contours(src, threshold, points);

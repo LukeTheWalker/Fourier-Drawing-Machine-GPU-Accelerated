@@ -1,25 +1,13 @@
-#ifndef DFT
-#define DFT
-
 #include <iostream>
 #include <vector>
 #include <cmath>
 #include <complex>
 #include <gmpxx.h>
 #include "opencv2/imgproc.hpp"
+#include "dft.hpp"
 
 using namespace std;
 using namespace cv;
-
-typedef complex<double> cd;
-
-struct epycicle
-{
-    double amp;
-    double phase;
-    double freq;
-    epycicle(double amp, double phase, double freq) : amp(amp), phase(phase), freq(freq) {}
-};
 
 void dft(vector<Point> &sig, vector<epycicle> &X)
 {
@@ -107,6 +95,3 @@ Point fourier_drawer(Mat& img, double x, double y, float angle, vector<epycicle>
     }
     return Point(p_target) + Point(center_x, center_y);
 }
-
-#endif
-

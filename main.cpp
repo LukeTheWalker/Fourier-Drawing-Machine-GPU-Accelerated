@@ -4,9 +4,9 @@
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
-#include "contour.cpp"
+#include "contour.hpp"
 #include "utils.hpp"
-#include "dft.cpp"
+#include "dft.hpp"
 
 using namespace cv;
 using namespace std;

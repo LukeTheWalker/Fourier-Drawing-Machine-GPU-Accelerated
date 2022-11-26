@@ -3,19 +3,14 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 #include "utils.hpp"
+#include "contour.hpp"
 
 using namespace cv;
 using namespace std;
 
 static const char *window_name = "Contour Map";
 
- struct callback_data{
-    int treshold;
-    int min_size;
-    Mat src;
-};
-
-vector<vector<double> > DEBUG_distances;
+static vector<vector<double> > DEBUG_distances;
 
 void filter_vector_by_min (vector<vector<Point>> &contours, int min_size){
     contours.erase(

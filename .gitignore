@@ -4,3 +4,5 @@ contour.txt
 .vscode
 output
 .DS_Store
+obj
+bin

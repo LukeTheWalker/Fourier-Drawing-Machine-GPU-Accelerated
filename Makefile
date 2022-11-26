@@ -1,7 +1,6 @@
 IDIR = include
 SDIR = src
 BINDIR = bin
-DATADIR = data
 
 CXX=g++
 CXXFLAGS= -I$(IDIR) -std=c++17 -g -O3  $(CV_FLAGS)
@@ -10,6 +9,9 @@ LDFLAGS = $(GMP) $(CV_LIBS)
 CV_FLAGS = `pkg-config --cflags opencv4`
 CV_LIBS = `pkg-config --libs opencv4`
 GMP = -lgmp -lgmpxx
+
+DATADIR = data
+create_data_folder := $(shell mkdir -p $(DATADIR))
 
 DEPS = $(IDIR)/$(wildcard *.hpp)
 
@@ -21,7 +23,7 @@ OUT_DIR=output
 _OBJ = $(patsubst %.cpp,%.o,$(wildcard $(SDIR)/*.cpp))
 OBJ = $(patsubst $(SDIR)/%,$(ODIR)/%,$(_OBJ))
 
-create_build_folder := $(shell mkdir -p $(BINDIR))
+create_bin_folder := $(shell mkdir -p $(BINDIR))
 TARGET = $(BINDIR)/app
 
 all: $(TARGET) run gif

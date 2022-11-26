@@ -26,10 +26,15 @@ OBJ = $(patsubst $(SDIR)/%,$(ODIR)/%,$(_OBJ))
 create_bin_folder := $(shell mkdir -p $(BINDIR))
 TARGET = $(BINDIR)/app
 
-all: $(TARGET) run gif
+input_file = $(DATADIR)/piccione.png
+
+file_name = $(notdir $(input_file))
+gif_file = $(OUT_DIR)/_$(basename $(file_name)).gif
 
 $(TARGET): $(OBJ)
 	$(CXX) -o $@ $^ $(LDFLAGS)
+
+all: $(TARGET) run gif
 
 run: $(TARGET)
 	rm -rf $(OUT_DIR)
@@ -37,7 +42,7 @@ run: $(TARGET)
 	time $< $(input_file)
 
 gif:
-	ffmpeg -f image2 -framerate 60 -i $(OUT_DIR)/gif-%05d.png -loop -1 $(OUT_DIR)/_$(input_file:.png=.gif) 
+	ffmpeg -f image2 -framerate 60 -i $(OUT_DIR)/gif-%05d.png -loop -1 $(gif_file)
 	open $(OUT_DIR)
 
 $(ODIR)/%.o: $(SDIR)/%.cpp $(DEPS)

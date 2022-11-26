@@ -8,7 +8,8 @@
 using namespace cv;
 using namespace std;
 
-static const char *window_name = "Contour Map";
+static const char *contour_window = "Contour Map";
+static const char *original_window = "Original";
 
 static vector<vector<double> > DEBUG_distances;
 
@@ -109,14 +110,19 @@ void draw_minimum_distances(vector<vector<Point>> &points, vector<vector<double>
     }
 }
 
-void apply_contours(Mat & src, int threshold, int min_size, vector<vector <Point> > & points){
+void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & points){
+    int canny_low = thresholds.canny_low;
+    int canny_high = thresholds.canny_high;
+    int sigma = thresholds.sigma;
+    int min_size = thresholds.min_size;
     Mat canny_output, src_gray;
     vector<vector<Point> > contours;
 
     cvtColor( src, src_gray, COLOR_BGR2GRAY );
-    blur( src_gray, src_gray, Size(3,3) );
+    // blur( src_gray, src_gray, Size(3,3) );
+    GaussianBlur(src_gray, src_gray, Size(5,5), sigma);
     
-    Canny( src_gray, canny_output, threshold, threshold*2 );
+    Canny( src_gray, canny_output, canny_low, canny_high );
 
     vector<Vec4i> hierarchy;
     findContours( canny_output, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_TC89_L1 );
@@ -136,12 +142,13 @@ void apply_contours(Mat & src, int threshold, int min_size, vector<vector <Point
 
 static void thresh_callback(int, void* _data)
 {
-    callback_data * data = (callback_data *)_data;
+    CallbackData * data = (CallbackData *)_data;
 
     vector<vector<Point> > contours;
     Mat drawing = Mat::zeros( data->src.size(), CV_8UC3 );
+    Mat src_contours = data->src.clone();
 
-    apply_contours(data->src, data->treshold, data->min_size, contours);
+    apply_contours(data->src, data->thresholds, contours);
 
     polylines(drawing, contours, false, Scalar(255, 255, 255), 2, LINE_AA, 0);
 
@@ -153,47 +160,61 @@ static void thresh_callback(int, void* _data)
         line(drawing, contours[i-1][0], contours[i].back(), Scalar(0, 0, 255), 1, LINE_AA);
     }
 
+    // draw contours on the original image
+    polylines(src_contours, contours, false, Scalar(0, 0, 255), 2, LINE_AA, 0);
+
     // Show in a window 
-    imshow( window_name, drawing );
+    imshow( contour_window, drawing );
+    imshow( original_window, src_contours );
 }
 
-static pair<int, int> findTresholds(Mat & src)
+static Thresholds findTresholds(Mat & src)
 {
-    callback_data data;
+    CallbackData data;
     data.src = src;
-    data.treshold = 10;
-    data.min_size = 0;
+    data.thresholds.canny_low = 10;
+    data.thresholds.canny_high = 100;
+    data.thresholds.min_size = 0;
+    data.thresholds.sigma = 3;
+
     
     /// Create Window
-    namedWindow( window_name );
-    imshow( "Original", src );
+    namedWindow( contour_window );
+    imshow( original_window, src );
 
     const int max_thresh = 255;
-    createTrackbar( "Canny thresh:", window_name, &data.treshold, max_thresh, thresh_callback, &data );
-    createTrackbar( "Min Size:", window_name, &data.min_size, 100, thresh_callback, &data );
+    createTrackbar( "Canny low:", contour_window, &data.thresholds.canny_low, max_thresh, thresh_callback, &data );
+    createTrackbar( "Canny high:", contour_window, &data.thresholds.canny_high, max_thresh, thresh_callback, &data );
+    createTrackbar( "Min Size:", contour_window, &data.thresholds.min_size, 100, thresh_callback, &data );
+    createTrackbar( "Sigma:", contour_window, &data.thresholds.sigma, 10, thresh_callback, &data );
     thresh_callback( 0, &data );
 
     waitKey();
 
-    return make_pair(data.treshold, data.min_size);
+    return data.thresholds;
 }
 
-pair<int, int> get_treshold(string file_name, Mat & src)
+Thresholds get_treshold(string file_name, Mat & src)
 {
     // read tresholds from file if file exists else get them from function
-    pair<int, int> tresholds;
+    Thresholds tresholds;
     ifstream file(file_name);
-    if (file.is_open())
-    {
-        file >> tresholds.first >> tresholds.second;
+    if (file.is_open()){
+        file >> tresholds.canny_low;
+        file >> tresholds.canny_high;
+        file >> tresholds.min_size;
+        file >> tresholds.sigma;
         file.close();
-    }
-    else
-    {
+    } else {
         tresholds = findTresholds(src);
         ofstream file(file_name);
-        file << tresholds.first << " " << tresholds.second;
-        file.close();
+        if (file.is_open()){
+            file << tresholds.canny_low << endl;
+            file << tresholds.canny_high << endl;
+            file << tresholds.min_size << endl;
+            file << tresholds.sigma << endl;
+            file.close();
+        }
     }
     return tresholds;
 }

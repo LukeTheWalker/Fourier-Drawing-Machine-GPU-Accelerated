@@ -17,24 +17,28 @@ Mat src, edges;
 
 int main(int argc, char **argv)
 {
-    CommandLineParser parser(argc, argv, "{@input | fruits.jpg | input image}");
-    src = imread(samples::findFile(parser.get<String>("@input")), IMREAD_COLOR); // Load an image
+    if (argc != 2)
+    {
+        printf("usage: %s <Image_Path>\n", argv[0]);
+        return -1;
+    }
+
+    src = imread(argv[1], IMREAD_COLOR); // Load an image
 
     if (src.empty())
     {
         cout << "Could not open or find the image!\n"
              << std::endl;
-        cout << "Usage: " << argv[0] << " <Input image>" << std::endl;
         return -1;
     }
 
     Size src_size = src.size();
     int src_type = CV_8UC1;
 
-    pair<int, int> threshold = get_treshold("contour.txt", src);
+    Thresholds threshold = get_treshold("contour.txt", src);
 
     vector<vp> points;
-    apply_contours(src, threshold.first, threshold.second, points);
+    apply_contours(src, threshold, points);
 
     vector<epycicle> fourierXY; 
     dft(points, fourierXY);
@@ -88,8 +92,7 @@ int main(int argc, char **argv)
 
     for (int j = 1; j < 60; j++){
         drawing = Mat::zeros(src_size, src_type);
-        for(auto &p : points)
-            polylines(drawing, p, false, Scalar(255, 255, 255), line_thickness, LINE_AA, 0);
+        polylines(drawing, points_drawn, false, Scalar(255, 255, 255), line_thickness, LINE_AA, 0);
         sprintf(filename, "output/gif-%05d.png", j + last_frame);
         imwrite(filename, drawing);
     } 

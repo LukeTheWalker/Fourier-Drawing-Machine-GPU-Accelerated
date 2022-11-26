@@ -10,9 +10,15 @@
 using namespace cv;
 using namespace std;
 
-struct callback_data{
-    int treshold;
+struct Thresholds {
+    int canny_low;
+    int canny_high;
     int min_size;
+    int sigma;
+};
+
+struct CallbackData{
+    Thresholds thresholds;
     Mat src;
 };
 
@@ -30,12 +36,12 @@ void order_clusters_by_minimum_distance (vector<vector<Point>> &, vector<vector<
 
 void draw_minimum_distances(vector<vector<Point>> &, vector<vector<double>> &, Mat &);
 
-void apply_contours(Mat & , int , int , vector<vector <Point> > & );
+void apply_contours(Mat &, Thresholds, vector<vector <Point> > & );
 
 static void thresh_callback(int, void* );
 
-static pair<int, int> findTresholds(Mat & );
+static Thresholds findTresholds(Mat & );
 
-pair<int, int> get_treshold(string, Mat & );
+Thresholds get_treshold(string, Mat & );
 
 #endif

@@ -1,9 +1,11 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <unordered_map>
 #include <complex>
 #include <gmpxx.h>
 #include "opencv2/imgproc.hpp"
+#include "utils.hpp"
 #include "dft.hpp"
 
 using namespace std;
@@ -71,6 +73,7 @@ Point fourier_drawer(Mat& img, double x, double y, float angle, vector<epycicle>
 
     Vec2d p_target;
     Vec2d target;
+    vector<Point> non_zero;
     for (int k = 0; k < fourier.size(); k++)
     {
         float amp = fourier[k].amp;
@@ -79,19 +82,35 @@ Point fourier_drawer(Mat& img, double x, double y, float angle, vector<epycicle>
         target += vec_from_angle_and_mag(time.get_d() * freq + phase + angle, amp);
         // ellipse (p_target.x, p_target.y, amp*2, amp*2);
         if (k != 0){
-            // Mat overlay;
+            vector<Point> non_zero_tmp;
             // img.copyTo(overlay);
-            ellipse(img, 
-                Point(center_x + p_target[0], center_y + p_target[1]), 
-                Size(amp, amp), 0, 0, 360, Scalar(50, 50, 50), 1, LINE_AA);
+            ellipse2Poly(Point(center_x + p_target[0], center_y + p_target[1]), Size(amp, amp), 0, 0, 360, 1, non_zero_tmp);
+            // addWeighted(overlay, 0, img, .5, 0, img);
+            // ellipse(img, 
+            //     Point(center_x + p_target[0], center_y + p_target[1]), 
+            //     Size(amp, amp), 0, 0, 360, Scalar(50), 1, LINE_AA);
             // addWeighted(overlay, 0, img, .5, 0, img);
             line(img, 
                 Point(center_x + p_target[0], center_y + p_target[1]),
                 Point(center_x + target[0]  , center_y + target[1]  ), 
-                Scalar(100, 100, 100), 1, LINE_AA);
+                Scalar(150), 1, LINE_AA);
+            non_zero.insert(non_zero.end(), non_zero_tmp.begin(), non_zero_tmp.end());
         }
         // line ( Point(p_target), Point(target));
         p_target = target;
     }
+    // get number of occurences of each point in non_zero
+    unordered_map<int, int> occurences;
+    for (Point &p : non_zero)
+        occurences[p.x + p.y * img.cols]++;
+
+
+    // for each occurence, draw a point
+    for (auto &p : occurences){
+        // Point pnt(p.first % img.cols, p.first / img.cols);
+        // circle(img, pnt, 1, Scalar(p.second*50), -1, LINE_AA);
+        img.at<uchar>(p.first / img.cols, p.first % img.cols) += p.second*50;    
+    }
+    
     return Point(p_target) + Point(center_x, center_y);
 }

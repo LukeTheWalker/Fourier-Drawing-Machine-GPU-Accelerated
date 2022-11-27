@@ -73,7 +73,7 @@ Point fourier_drawer(Mat& img, double x, double y, float angle, vector<epycicle>
 
     Vec2d p_target;
     Vec2d target;
-    vector<Point> non_zero;
+    vector<vector<Point> >non_zero;
     for (int k = 0; k < fourier.size(); k++)
     {
         float amp = fourier[k].amp;
@@ -94,23 +94,44 @@ Point fourier_drawer(Mat& img, double x, double y, float angle, vector<epycicle>
                 Point(center_x + p_target[0], center_y + p_target[1]),
                 Point(center_x + target[0]  , center_y + target[1]  ), 
                 Scalar(150), 1, LINE_AA);
-            non_zero.insert(non_zero.end(), non_zero_tmp.begin(), non_zero_tmp.end());
+            non_zero.push_back(non_zero_tmp);
         }
         // line ( Point(p_target), Point(target));
         p_target = target;
     }
-    // get number of occurences of each point in non_zero
+    
     unordered_map<int, int> occurences;
-    for (Point &p : non_zero)
-        occurences[p.x + p.y * img.cols]++;
+    // for (vector<Point> &v : non_zero)
+    //     for (Point &p : v)
+    //         occurences[p.x + p.y * img.cols]++;
 
+
+    // for (auto &p: non_zero){
+    //     for (int i = 1; i < p.size(); i++){
+    //         LineIterator it (img, p[i-1], p[i], 8);
+    //         for (int j = 0; j < it.count; j++, ++it){
+    //             Point pt = it.pos();
+    //             int occ = occurences[pt.x + pt.y * img.cols];
+    //             img.at<uchar>(pt) += 50 * (occ + !(occ));
+    //         }
+    //     }
+    // }
+    for (auto &p: non_zero){
+        for (int i = 1; i < p.size(); i++){
+            LineIterator it (img, p[i-1], p[i], 8);
+            for (int j = 0; j < it.count - 1; j++, ++it){
+                Point pt = it.pos();
+                occurences[pt.x + pt.y * img.cols]++;
+            }
+        }
+    }
 
     // for each occurence, draw a point
     for (auto &p : occurences){
         // Point pnt(p.first % img.cols, p.first / img.cols);
         // circle(img, pnt, 1, Scalar(p.second*50), -1, LINE_AA);
+        // if (p.second > 1)
         img.at<uchar>(p.first / img.cols, p.first % img.cols) += p.second*50;    
     }
-    
     return Point(p_target) + Point(center_x, center_y);
 }

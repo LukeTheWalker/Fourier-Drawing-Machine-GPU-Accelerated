@@ -13,6 +13,38 @@ static const char *original_window = "Original";
 
 static vector<vector<double> > DEBUG_distances;
 
+
+void merge_close_contours (vector<vector<Point>> &contours, double min_distance){
+    // merge contours that are close to each other
+    if (min_distance < 1){
+        return;
+    }
+    vector<vector<Point>> new_contours;
+    vector<bool> used(contours.size(), false);
+    for (int i = 0; i < contours.size(); i++){
+        if (used[i]){
+            continue;
+        }
+        vector<Point> new_contour = contours[i];
+        for (int j = i + 1; j < contours.size(); j++){
+            if (used[j]){
+                continue;
+            }
+            for (int k = 0; k < contours[j].size(); k++){
+                for (int l = 0; l < new_contour.size(); l++){
+                    if (norm(contours[j][k] - new_contour[l]) < min_distance){
+                        new_contour.insert(new_contour.end(), contours[j].begin(), contours[j].end());
+                        used[j] = true;
+                        break;
+                    }
+                }
+            }
+        }
+        new_contours.push_back(new_contour);
+    }
+    contours = new_contours;
+}
+
 void filter_vector_by_min (vector<vector<Point>> &contours, int min_size){
     contours.erase(
         remove_if (contours.begin(), contours.end(), 
@@ -115,6 +147,7 @@ void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & 
     int canny_high = thresholds.canny_high;
     int sigma = thresholds.sigma;
     int min_size = thresholds.min_size;
+    double merging_distance = thresholds.merging_distance/10.0;
     Mat canny_output, src_gray;
     vector<vector<Point> > contours;
 
@@ -126,6 +159,8 @@ void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & 
 
     vector<Vec4i> hierarchy;
     findContours( canny_output, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_TC89_L1 );
+
+    merge_close_contours(contours, merging_distance);
 
     filter_vector_by_min(contours, min_size);
 
@@ -161,7 +196,14 @@ static void thresh_callback(int, void* _data)
     }
 
     // draw contours on the original image
-    polylines(src_contours, contours, false, Scalar(0, 0, 255), 2, LINE_AA, 0);
+    // polylines(src_contours, contours, false, Scalar(0, 0, 255), 2, LINE_AA, 0);
+    RNG rng;
+    for( size_t i = 0; i< contours.size(); i++ )
+    {
+        Scalar color = Scalar( rng.uniform(0, 256), rng.uniform(0,256), rng.uniform(0,256) );
+        polylines(src_contours, contours[i], false, color, 2, LINE_AA, 0);
+    }
+
 
     // Show in a window 
     imshow( contour_window, drawing );
@@ -175,6 +217,7 @@ static Thresholds findTresholds(Mat & src)
     data.thresholds.canny_low = 10;
     data.thresholds.canny_high = 100;
     data.thresholds.min_size = 0;
+    data.thresholds.merging_distance = 0;
     data.thresholds.sigma = 3;
 
     
@@ -183,10 +226,11 @@ static Thresholds findTresholds(Mat & src)
     imshow( original_window, src );
 
     const int max_thresh = 255;
+    createTrackbar( "Sigma:", contour_window, &data.thresholds.sigma, 10, thresh_callback, &data );
     createTrackbar( "Canny low:", contour_window, &data.thresholds.canny_low, max_thresh, thresh_callback, &data );
     createTrackbar( "Canny high:", contour_window, &data.thresholds.canny_high, max_thresh, thresh_callback, &data );
+    createTrackbar( "Merging distance", contour_window, &data.thresholds.merging_distance, 100, thresh_callback, &data );
     createTrackbar( "Min Size:", contour_window, &data.thresholds.min_size, 100, thresh_callback, &data );
-    createTrackbar( "Sigma:", contour_window, &data.thresholds.sigma, 10, thresh_callback, &data );
     thresh_callback( 0, &data );
 
     waitKey();

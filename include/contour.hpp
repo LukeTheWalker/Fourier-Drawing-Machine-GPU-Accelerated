@@ -15,6 +15,7 @@ struct Thresholds {
     int canny_high;
     int min_size;
     int sigma;
+    int merging_distance;
 };
 
 struct CallbackData{

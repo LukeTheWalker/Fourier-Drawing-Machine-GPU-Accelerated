@@ -23,8 +23,6 @@ void dft(vector<Point> &sig, vector<epycicle> &X)
         {
             double phi = (2.0 * double(k) * M_PI * double(n)) / double(N);
             cd c(cos(phi), -sin(phi));
-            // Xk.add( PVector.fromAngle(sig.get(n).heading()+c.heading()).setMag(sig.get(n).mag()*c.mag())); //alternative multiplication beetween complex numbers
-            // Xk.add(mult(sig.get(n),c));
             cd sig_n(double(sig[n].x), double(sig[n].y));
             Xk = Xk + (sig_n * c);
         }

@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 
     progressbar bar(n_frames);
 
-    vector<double> linspaced = linspace(0, (int)fourierXY.size(), n_frames);
+    vector<double> linspaced = linspace(0, (int)n_points, n_frames);
     
     for (int i = 0; i < points.size(); i++){
         for (int j = 0; j < points[i].size(); j++){
@@ -76,7 +76,7 @@ int main(int argc, char **argv)
             // polylines(drawing, points_drawn.back(), false, Scalar(255, 255, 255), line_thickness, LINE_AA, 0);
             
             prev = v;
-            time += ((2 * M_PI) / fourierXY.size());
+            time += ((2 * M_PI) / n_points);
             cnt++;
 
             if ( linspaced[last_frame] - cnt < 1 ){

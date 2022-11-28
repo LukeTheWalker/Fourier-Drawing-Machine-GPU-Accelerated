@@ -27,7 +27,7 @@ struct fourier_state {
     vector<pair<Point, double> > ellipses;
 };
 
-void dft(vector<Point> &, vector<epycicle> &);
+void dft(vector<Point> &, vector<epycicle> &, int);
 
 size_t dft (vector<vector<Point> > &, vector<epycicle> &);
 

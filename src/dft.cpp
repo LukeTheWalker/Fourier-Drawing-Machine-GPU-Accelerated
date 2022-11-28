@@ -13,10 +13,10 @@
 using namespace std;
 using namespace cv;
 
-void dft(vector<Point> &sig, vector<epycicle> &X)
+void dft(vector<Point> &sig, vector<epycicle> &X, int K)
 {
     int N = sig.size();
-    for (int k = 0; k < N; k++)
+    for (int k = 0; k < K; k++)
     {
         cd Xk(0.0, 0.0);
         for (int n = 0; n < N; n++)
@@ -43,7 +43,7 @@ size_t dft (vector<vector<Point> > &sig, vector<epycicle> &X){
 
     printf("Running DFT on %lu points\n", linearized_sig.size());
     
-    dft(linearized_sig, X);
+    dft(linearized_sig, X, linearized_sig.size());
 
     printf("DFT done\n");
 

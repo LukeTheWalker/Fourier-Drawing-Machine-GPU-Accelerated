@@ -42,7 +42,7 @@ run: $(TARGET)
 	time $< $(input_file)
 
 gif:
-	ffmpeg -f image2 -framerate 60 -i $(OUT_DIR)/gif-%05d.png -loop -1 $(gif_file)
+	ffmpeg -f image2 -framerate 60 -i $(OUT_DIR)/gif-%05d.png -loop -1 $(gif_file) -hide_banner -loglevel error
 	open $(OUT_DIR)
 
 $(ODIR)/%.o: $(SDIR)/%.cpp $(DEPS)

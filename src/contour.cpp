@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <unordered_set>
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 #include "utils.hpp"
@@ -13,6 +14,40 @@ static const char *original_window = "Original";
 
 static vector<vector<double> > DEBUG_distances;
 
+void call_back_func(int event, int x, int y, int flags, void* _data){
+    CallbackData *data = (CallbackData *) _data;
+    if (event == EVENT_LBUTTONDOWN)
+        data->thresholds.brush_size+=5;
+    if (event == EVENT_RBUTTONDOWN)
+        data->thresholds.brush_size-=5;
+    if (flags & EVENT_FLAG_ALTKEY){
+        int brush_size = data -> thresholds.brush_size;
+        data->cursor = Point(x, y);
+        // exclude all points in a radius of 10 pixels
+        for (int i = -brush_size; i < brush_size; i++){
+            for (int j = -brush_size; j < brush_size; j++){
+                data->thresholds.excluded_points.insert(Point(x + i, y + j));
+            }
+        }
+        thresh_callback(0, _data);
+    }
+}
+
+void filter_contour_by_hand(vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points){
+    contours.erase(
+        remove_if (contours.begin(), contours.end(), 
+            [&_excluded_points](vector<Point> vec){
+                for (int i = 0; i < vec.size(); i++){
+                    if (_excluded_points.find(vec[i]) != _excluded_points.end()){
+                        return true;
+                    }
+                }
+                return false;
+            }
+        ),
+        contours.end()
+    );
+}
 
 void merge_close_contours (vector<vector<Point>> &contours, double min_distance){
     // merge contours that are close to each other
@@ -160,6 +195,8 @@ void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & 
     vector<Vec4i> hierarchy;
     findContours( canny_output, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_TC89_L1 );
 
+    filter_contour_by_hand(contours, thresholds.excluded_points);
+
     merge_close_contours(contours, merging_distance);
 
     filter_vector_by_min(contours, min_size);
@@ -204,8 +241,10 @@ static void thresh_callback(int, void* _data)
         polylines(src_contours, contours[i], false, color, 2, LINE_AA, 0);
     }
 
+    circle( src_contours, data->cursor, data->thresholds.brush_size, Scalar( 255, 0, 0 ), -1);
 
-    // Show in a window 
+    data->cursor = Point(0,0);
+
     imshow( contour_window, drawing );
     imshow( original_window, src_contours );
 }
@@ -214,11 +253,13 @@ static Thresholds findTresholds(Mat & src)
 {
     CallbackData data;
     data.src = src;
+    data.cursor = Point(-1, -1);
+    data.thresholds.sigma = 3;
     data.thresholds.canny_low = 10;
     data.thresholds.canny_high = 100;
     data.thresholds.min_size = 0;
+    data.thresholds.brush_size = 10;
     data.thresholds.merging_distance = 0;
-    data.thresholds.sigma = 3;
 
     
     /// Create Window
@@ -230,7 +271,9 @@ static Thresholds findTresholds(Mat & src)
     createTrackbar( "Canny low:", contour_window, &data.thresholds.canny_low, max_thresh, thresh_callback, &data );
     createTrackbar( "Canny high:", contour_window, &data.thresholds.canny_high, max_thresh, thresh_callback, &data );
     createTrackbar( "Merging distance", contour_window, &data.thresholds.merging_distance, 100, thresh_callback, &data );
+    createTrackbar( "Brush size", contour_window, &data.thresholds.brush_size, 100, thresh_callback, &data );
     createTrackbar( "Min Size:", contour_window, &data.thresholds.min_size, 100, thresh_callback, &data );
+    setMouseCallback(original_window, call_back_func, &data);
     thresh_callback( 0, &data );
 
     waitKey();
@@ -244,19 +287,32 @@ Thresholds get_treshold(string file_name, Mat & src)
     Thresholds tresholds;
     ifstream file(file_name);
     if (file.is_open()){
+        file >> tresholds.sigma;
         file >> tresholds.canny_low;
         file >> tresholds.canny_high;
         file >> tresholds.min_size;
-        file >> tresholds.sigma;
+        file >> tresholds.merging_distance;
+        file >> tresholds.brush_size;
+        // load all excluded points
+        int x, y;
+        while (file >> x >> y){
+            tresholds.excluded_points.insert(Point(x, y));
+        }
         file.close();
     } else {
         tresholds = findTresholds(src);
         ofstream file(file_name);
         if (file.is_open()){
+            file << tresholds.sigma << endl;
             file << tresholds.canny_low << endl;
             file << tresholds.canny_high << endl;
             file << tresholds.min_size << endl;
-            file << tresholds.sigma << endl;
+            file << tresholds.merging_distance << endl;
+            file << tresholds.brush_size << endl;
+            // save all excluded points
+            for (auto point : tresholds.excluded_points){
+                file << point.x << " " << point.y << endl;
+            }
             file.close();
         }
     }

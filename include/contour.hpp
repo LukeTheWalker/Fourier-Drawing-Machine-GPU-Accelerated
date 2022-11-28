@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <unordered_set>
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 #include "utils.hpp"
@@ -10,16 +11,29 @@
 using namespace cv;
 using namespace std;
 
+struct HashFunction
+  {
+    size_t operator()(const Point& point) const
+    {
+      size_t xHash = std::hash<int>()(point.x);
+      size_t yHash = std::hash<int>()(point.y) << 1;
+      return xHash ^ yHash;
+    }
+  };
+
 struct Thresholds {
+    int sigma;
     int canny_low;
     int canny_high;
     int min_size;
-    int sigma;
+    int brush_size;
     int merging_distance;
+    unordered_set<Point, HashFunction> excluded_points;
 };
 
 struct CallbackData{
     Thresholds thresholds;
+    Point cursor;
     Mat src;
 };
 

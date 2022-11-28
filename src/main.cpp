@@ -7,6 +7,7 @@
 #include "contour.hpp"
 #include "utils.hpp"
 #include "dft.hpp"
+#include "progress.hpp"
 
 using namespace cv;
 using namespace std;
@@ -41,7 +42,7 @@ int main(int argc, char **argv)
     apply_contours(src, threshold, points);
 
     vector<epycicle> fourierXY; 
-    dft(points, fourierXY);
+    size_t n_points = dft(points, fourierXY);
 
     sort_epycicles(fourierXY);
 
@@ -52,13 +53,15 @@ int main(int argc, char **argv)
 
     char filename[128];
 
-    #if 1
-
     int n_frames = 600;
     int last_frame = 0;
     int cnt = 0;
     int line_thickness = 2;
     vector<vector<Point> > points_drawn{vector<Point>()};
+
+    progressbar bar(n_frames);
+
+    vector<double> linspaced = linspace(0, (int)fourierXY.size(), n_frames);
     
     for (int i = 0; i < points.size(); i++){
         for (int j = 0; j < points[i].size(); j++){
@@ -78,8 +81,9 @@ int main(int argc, char **argv)
             time += ((2 * M_PI) / fourierXY.size());
             cnt++;
 
-            if (cnt % (fourierXY.size() / n_frames) == 0){
-                last_frame = cnt / (fourierXY.size() / n_frames);
+            if ( linspaced[last_frame] - cnt < 1 ){
+                bar.update();
+                last_frame++;
                 sprintf(filename, "output/gif-%05d.png", last_frame);
                 imwrite(filename, drawing);
             }
@@ -96,10 +100,8 @@ int main(int argc, char **argv)
         sprintf(filename, "output/gif-%05d.png", j + last_frame);
         imwrite(filename, drawing);
     } 
-    
-    #endif
-    
-    printf("All frames generated\n");
+        
+    printf("\nAll frames generated\n");
 
     // waitKey(0);
 

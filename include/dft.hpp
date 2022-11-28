@@ -23,7 +23,7 @@ struct epycicle
 
 void dft(vector<Point> &, vector<epycicle> &);
 
-void dft (vector<vector<Point> > &, vector<epycicle> &);
+size_t dft (vector<vector<Point> > &, vector<epycicle> &);
 
 void sort_epycicles(vector<epycicle> &);
 

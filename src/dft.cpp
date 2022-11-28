@@ -1,3 +1,5 @@
+#define FAST 1
+
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -35,7 +37,7 @@ void dft(vector<Point> &sig, vector<epycicle> &X)
     }
 }
 
-void dft (vector<vector<Point> > &sig, vector<epycicle> &X){
+size_t dft (vector<vector<Point> > &sig, vector<epycicle> &X){
     printf("Starting DFT\n");
     vector<Point> linearized_sig;
     for (vector<Point> &s : sig)
@@ -47,6 +49,7 @@ void dft (vector<vector<Point> > &sig, vector<epycicle> &X){
 
     printf("DFT done\n");
 
+    return linearized_sig.size();
 }
 
 void sort_epycicles(vector<epycicle> &X)
@@ -73,7 +76,9 @@ Point fourier_drawer(Mat& img, double x, double y, float angle, vector<epycicle>
 
     Vec2d p_target;
     Vec2d target;
-    vector<vector<Point> >non_zero;
+    vector<Point> arm;
+    vector<Point> degenerate_ellipses;
+
     for (int k = 0; k < fourier.size(); k++)
     {
         float amp = fourier[k].amp;
@@ -81,57 +86,32 @@ Point fourier_drawer(Mat& img, double x, double y, float angle, vector<epycicle>
         float freq = fourier[k].freq;
         target += vec_from_angle_and_mag(time.get_d() * freq + phase + angle, amp);
         // ellipse (p_target.x, p_target.y, amp*2, amp*2);
-        if (k != 0){
-            vector<Point> non_zero_tmp;
-            // img.copyTo(overlay);
-            ellipse2Poly(Point(center_x + p_target[0], center_y + p_target[1]), Size(amp, amp), 0, 0, 360, 1, non_zero_tmp);
-            // addWeighted(overlay, 0, img, .5, 0, img);
-            // ellipse(img, 
-            //     Point(center_x + p_target[0], center_y + p_target[1]), 
-            //     Size(amp, amp), 0, 0, 360, Scalar(50), 1, LINE_AA);
-            // addWeighted(overlay, 0, img, .5, 0, img);
-            line(img, 
-                Point(center_x + p_target[0], center_y + p_target[1]),
-                Point(center_x + target[0]  , center_y + target[1]  ), 
-                Scalar(150), 1, LINE_AA);
-            non_zero.push_back(non_zero_tmp);
+        if (k != 0 && amp > 1){
+            #if FAST
+            ellipse(img, 
+                Point(center_x + p_target[0], center_y + p_target[1]), 
+                Size(amp, amp), 0, 0, 360, Scalar(100), 1, LINE_AA, 0);
+            #else
+            Mat overlay = Mat::zeros(img.size(), CV_8UC1);
+            ellipse(overlay, 
+                Point(center_x + p_target[0], center_y + p_target[1]), 
+                Size(amp, amp), 0, 0, 360, Scalar(50), 1, LINE_AA, 0);
+            img+=overlay;
+            #endif
         }
-        // line ( Point(p_target), Point(target));
+        else if (amp <= 1)
+            degenerate_ellipses.push_back(Point(center_x + p_target[0], center_y + p_target[1]));
+        
         p_target = target;
+        arm.push_back(Point(center_x + target[0], center_y + target[1]));
     }
-    
-    unordered_map<int, int> occurences;
-    // for (vector<Point> &v : non_zero)
-    //     for (Point &p : v)
-    //         occurences[p.x + p.y * img.cols]++;
+    Mat overlay = Mat::zeros(img.size(), CV_8UC1);
+    polylines(overlay, arm, false, Scalar(150), 1, LINE_AA);
+    img+=overlay;
 
+    overlay = Mat::zeros(img.size(), CV_8UC1);
+    polylines(overlay, degenerate_ellipses, false, Scalar(100), 1, LINE_AA);
+    img+=overlay;
 
-    // for (auto &p: non_zero){
-    //     for (int i = 1; i < p.size(); i++){
-    //         LineIterator it (img, p[i-1], p[i], 8);
-    //         for (int j = 0; j < it.count; j++, ++it){
-    //             Point pt = it.pos();
-    //             int occ = occurences[pt.x + pt.y * img.cols];
-    //             img.at<uchar>(pt) += 50 * (occ + !(occ));
-    //         }
-    //     }
-    // }
-    for (auto &p: non_zero){
-        for (int i = 1; i < p.size(); i++){
-            LineIterator it (img, p[i-1], p[i], 8);
-            for (int j = 0; j < it.count - 1; j++, ++it){
-                Point pt = it.pos();
-                occurences[pt.x + pt.y * img.cols]++;
-            }
-        }
-    }
-
-    // for each occurence, draw a point
-    for (auto &p : occurences){
-        // Point pnt(p.first % img.cols, p.first / img.cols);
-        // circle(img, pnt, 1, Scalar(p.second*50), -1, LINE_AA);
-        // if (p.second > 1)
-        img.at<uchar>(p.first / img.cols, p.first % img.cols) += p.second*50;    
-    }
     return Point(p_target) + Point(center_x, center_y);
 }

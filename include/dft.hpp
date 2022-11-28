@@ -21,6 +21,12 @@ struct epycicle
     epycicle(double amp, double phase, double freq) : amp(amp), phase(phase), freq(freq) {}
 };
 
+struct fourier_state {
+    vector<Point> arm;
+    vector<Point> degenerate_ellipses;
+    vector<pair<Point, double> > ellipses;
+};
+
 void dft(vector<Point> &, vector<epycicle> &);
 
 size_t dft (vector<vector<Point> > &, vector<epycicle> &);
@@ -29,6 +35,8 @@ void sort_epycicles(vector<epycicle> &);
 
 Vec2d vec_from_angle_and_mag(double, double);
 
-Point fourier_drawer(Mat&, double, double, float, vector<epycicle> &, mpf_class);
+void fourier_calculator(double, double, float, vector<epycicle> &, mpf_class, fourier_state&);
+
+void fourier_drawer(Mat&, fourier_state&);
 
 #endif

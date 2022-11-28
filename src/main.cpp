@@ -65,9 +65,9 @@ int main(int argc, char **argv)
     
     for (int i = 0; i < points.size(); i++){
         for (int j = 0; j < points[i].size(); j++){
-            drawing = Mat::zeros(src_size, src_type);
-
-            Point v = fourier_drawer(drawing, 0, 0, 0, fourierXY, time);
+            fourier_state state;
+            fourier_calculator(0, 0, 0, fourierXY, time, state);
+            Point v = state.arm.back();
 
             points_drawn.back().push_back(v);
 
@@ -75,13 +75,14 @@ int main(int argc, char **argv)
             //     polylines(drawing, points_drawn[k], false, Scalar(255, 255, 255), line_thickness, LINE_AA, 0);
             // polylines(drawing, points_drawn.back(), false, Scalar(255, 255, 255), line_thickness, LINE_AA, 0);
             
-            polylines(drawing, points_drawn, false, Scalar(255, 255, 255), line_thickness, LINE_AA, 0);
-
             prev = v;
             time += ((2 * M_PI) / fourierXY.size());
             cnt++;
 
             if ( linspaced[last_frame] - cnt < 1 ){
+                drawing = Mat::zeros(src_size, src_type);
+                fourier_drawer(drawing, state);
+                polylines(drawing, points_drawn, false, Scalar(255, 255, 255), line_thickness, LINE_AA, 0);
                 bar.update();
                 last_frame++;
                 sprintf(filename, "output/gif-%05d.png", last_frame);

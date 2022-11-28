@@ -69,6 +69,7 @@ Vec2d vec_from_angle_and_mag(double angle, double mag)
 }
 
 // return point drawn
+/*
 Point fourier_drawer(Mat& img, double x, double y, float angle, vector<epycicle> &fourier, mpf_class time)
 {
     double center_x = x;
@@ -114,4 +115,59 @@ Point fourier_drawer(Mat& img, double x, double y, float angle, vector<epycicle>
     img+=overlay;
 
     return Point(p_target) + Point(center_x, center_y);
+}
+*/
+
+void fourier_calculator(double x, double y, float angle, vector<epycicle> &fourier, mpf_class time, fourier_state& state)
+{
+    double center_x = x;
+    double center_y = y;
+
+    Vec2d p_target;
+    Vec2d target;
+    
+    for (int k = 0; k < fourier.size(); k++)
+    {
+        float amp = fourier[k].amp;
+        float phase = fourier[k].phase;
+        float freq = fourier[k].freq;
+        target += vec_from_angle_and_mag(time.get_d() * freq + phase + angle, amp);
+        // ellipse (p_target.x, p_target.y, amp*2, amp*2);
+        if (k != 0 && amp > 1)
+            state.ellipses.push_back({Point(center_x + p_target[0], center_y + p_target[1]),  amp});
+        else if (amp <= 1)
+            state.degenerate_ellipses.push_back(Point(center_x + p_target[0], center_y + p_target[1]));
+        
+        p_target = target;
+        state.arm.push_back(Point(center_x + target[0], center_y + target[1]));
+    }
+    // return state;
+}
+
+void fourier_drawer(Mat& img, fourier_state& state)
+{
+    Mat overlay = Mat::zeros(img.size(), CV_8UC1);
+    for (int i = 0; i < state.ellipses.size(); i++)
+    {
+        #if FAST
+        ellipse(img, 
+            state.ellipses[i].first, 
+            Size(state.ellipses[i].second, state.ellipses[i].second), 0, 0, 360, Scalar(100), 1, LINE_AA, 0);
+        #else
+        overlay = Mat::zeros(img.size(), CV_8UC1);
+        ellipse(overlay, 
+            state.ellipses[i].first, 
+            Size(state.ellipses[i].second, state.ellipses[i].second), 0, 0, 360, Scalar(50), 1, LINE_AA, 0);
+        img+=overlay;
+        #endif
+    }        
+
+    overlay = Mat::zeros(img.size(), CV_8UC1); 
+    polylines(overlay, state.arm, false, Scalar(150), 1, LINE_AA);
+    img+=overlay;
+
+    overlay = Mat::zeros(img.size(), CV_8UC1);
+    polylines(overlay, state.degenerate_ellipses, false, Scalar(100), 1, LINE_AA);
+    img+=overlay;
+
 }

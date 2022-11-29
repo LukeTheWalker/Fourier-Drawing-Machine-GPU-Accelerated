@@ -4,7 +4,7 @@ IDIR = include
 SDIR = src
 BINDIR = bin
 
-ifeq (($shell which nvcc),)
+ifeq ($(shell which nvcc),)	
 	CXX := g++
 else
 	CXX := nvcc

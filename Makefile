@@ -4,7 +4,12 @@ IDIR = include
 SDIR = src
 BINDIR = bin
 
-CXX=g++
+ifeq (($shell which nvcc),)
+	CXX := g++
+else
+	CXX := nvcc
+endif
+
 CXXFLAGS= -I$(IDIR) -std=c++17 -g -O3  $(CV_FLAGS)
 LDFLAGS = $(GMP) $(CV_LIBS)
 

@@ -1,3 +1,5 @@
+SHELL := /bin/zsh
+
 IDIR = include
 SDIR = src
 BINDIR = bin
@@ -26,6 +28,8 @@ OBJ = $(patsubst $(SDIR)/%,$(ODIR)/%,$(_OBJ))
 create_bin_folder := $(shell mkdir -p $(BINDIR))
 TARGET = $(BINDIR)/app
 
+UNAME_S := $(shell uname -s)
+
 input_file = $(DATADIR)/piccione.png
 
 file_name = $(notdir $(input_file))
@@ -43,7 +47,9 @@ run: $(TARGET)
 
 gif:
 	ffmpeg -f image2 -framerate 60 -i $(OUT_DIR)/gif-%05d.png -loop -1 $(gif_file) -hide_banner -loglevel error
+ifeq ($(UNAME_S),Darwin)
 	open $(OUT_DIR)
+endif
 
 $(ODIR)/%.o: $(SDIR)/%.cpp $(DEPS)
 	$(CXX) -c -o $@ $< $(CXXFLAGS)

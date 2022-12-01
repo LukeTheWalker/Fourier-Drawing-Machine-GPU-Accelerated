@@ -21,14 +21,20 @@ GMP = -lgmp -lgmpxx
 DATADIR = data
 # create_data_folder := $(shell mkdir -p $(DATADIR))
 
-DEPS = $(IDIR)/$(wildcard *.hpp)
-
 ODIR=obj
 # create_build_folder := $(shell mkdir -p $(ODIR))
 
 OUT_DIR=output
 
-_OBJ = $(patsubst %.cpp,%.o,$(wildcard $(SDIR)/*.cpp))
+DEPS = $(IDIR)/$(wildcard *.hpp *.cuh)
+
+_CUFILES = $(wildcard $(SDIR)/*.cu)
+_CXXFILES = $(wildcard $(SDIR)/*.cpp)
+
+CUFILES = $(notdir $(_CUFILES))
+CXXFILES = $(notdir $(_CXXFILES))
+
+_OBJ = $(_CUFILES:.cu=.o) $(_CXXFILES:.cpp=.o)
 OBJ = $(patsubst $(SDIR)/%,$(ODIR)/%,$(_OBJ))
 
 # create_bin_folder := $(shell mkdir -p $(BINDIR))
@@ -58,6 +64,9 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 $(ODIR)/%.o: $(SDIR)/%.cpp $(DEPS) | $(ODIR)
+	$(CXX) -c -o $@ $< $(CXXFLAGS)
+
+$(ODIR)/%.o: $(SDIR)/%.cu $(DEPS)  | $(ODIR)
 	$(CXX) -c -o $@ $< $(CXXFLAGS)
 
 .PHONY: clean run gif

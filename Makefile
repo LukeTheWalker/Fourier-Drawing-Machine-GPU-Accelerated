@@ -18,19 +18,19 @@ CV_LIBS = `pkg-config --libs opencv4`
 GMP = -lgmp -lgmpxx
 
 DATADIR = data
-create_data_folder := $(shell mkdir -p $(DATADIR))
+# create_data_folder := $(shell mkdir -p $(DATADIR))
 
 DEPS = $(IDIR)/$(wildcard *.hpp)
 
 ODIR=obj
-create_build_folder := $(shell mkdir -p $(ODIR))
+# create_build_folder := $(shell mkdir -p $(ODIR))
 
 OUT_DIR=output
 
 _OBJ = $(patsubst %.cpp,%.o,$(wildcard $(SDIR)/*.cpp))
 OBJ = $(patsubst $(SDIR)/%,$(ODIR)/%,$(_OBJ))
 
-create_bin_folder := $(shell mkdir -p $(BINDIR))
+# create_bin_folder := $(shell mkdir -p $(BINDIR))
 TARGET = $(BINDIR)/app
 
 UNAME_S := $(shell uname -s)
@@ -40,12 +40,12 @@ input_file = $(DATADIR)/piccione.png
 file_name = $(notdir $(input_file))
 gif_file = $(OUT_DIR)/_$(basename $(file_name)).gif
 
-$(TARGET): $(OBJ)
+$(TARGET): $(OBJ) | $(BINDIR)
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
 all: $(TARGET) run gif
 
-run: $(TARGET)
+run: $(TARGET) | $(DATADIR)
 	rm -rf $(OUT_DIR)
 	mkdir $(OUT_DIR)
 	time $< $(input_file)
@@ -56,10 +56,19 @@ ifeq ($(UNAME_S),Darwin)
 	open $(OUT_DIR)
 endif
 
-$(ODIR)/%.o: $(SDIR)/%.cpp $(DEPS)
+$(ODIR)/%.o: $(SDIR)/%.cpp $(DEPS) | $(ODIR)
 	$(CXX) -c -o $@ $< $(CXXFLAGS)
 
 .PHONY: clean run gif
 
 clean:
 	rm -f $(ODIR)/*.o $(TARGET)
+
+$(ODIR):
+	mkdir -p $(ODIR)
+
+$(BINDIR): 
+	mkdir -p $(BINDIR)
+
+$(DATADIR):
+	mkdir -p $(DATADIR)

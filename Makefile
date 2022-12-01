@@ -8,9 +8,10 @@ ifeq ($(shell which nvcc),)
 	CXX := g++
 else
 	CXX := nvcc
+	CUFLAGS := -arch=sm_86
 endif
 
-CXXFLAGS= -I$(IDIR) -std=c++17 -g -O3  $(CV_FLAGS)
+CXXFLAGS= -I$(IDIR) -std=c++17 -g -O3 $(CUFLAGS) $(CV_FLAGS)
 LDFLAGS = $(GMP) $(CV_LIBS)
 
 CV_FLAGS = `pkg-config --cflags opencv4`

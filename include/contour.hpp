@@ -6,7 +6,7 @@
 #include <unordered_set>
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
-#include "utils.hpp"
+#include "utils.cuh"
 
 using namespace cv;
 using namespace std;

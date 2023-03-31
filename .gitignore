@@ -4,3 +4,4 @@ obj
 bin
 data
 .vscode
+*.txt

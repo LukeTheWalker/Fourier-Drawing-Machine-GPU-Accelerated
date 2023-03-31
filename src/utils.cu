@@ -1,4 +1,4 @@
-#include "utils.hpp"
+#include "utils.cuh"
 
 string type2str(int type)
 {
@@ -22,4 +22,21 @@ string type2str(int type)
   r += (chans+'0');
 
   return r;
+}
+
+void cuda_err_check (cudaError_t err, const char *file, int line)
+{
+    if (err != cudaSuccess)
+    {
+        fprintf (stderr, "CUDA error: %s (%s:%d)\n", cudaGetErrorString (err), file, line);
+        exit (EXIT_FAILURE);
+    }
+}
+
+int round_div_up (int a, int b){
+    return (a + b - 1)/b;
+}
+
+int round_mul_up (int a, int b){
+    return round_div_up(a, b)*b;
 }

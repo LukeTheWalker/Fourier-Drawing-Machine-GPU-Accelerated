@@ -3,7 +3,8 @@
 #include <unordered_set>
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
-#include "utils.hpp"
+#include "utils.cuh"
+#include "contour_dev.cuh"
 #include "contour.hpp"
 
 using namespace cv;
@@ -195,7 +196,8 @@ void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & 
     vector<Vec4i> hierarchy;
     findContours( canny_output, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_TC89_L1 );
 
-    filter_contour_by_hand(contours, thresholds.excluded_points);
+    // filter_contour_by_hand(contours, thresholds.excluded_points);
+    filter_contour_by_hand_wrapper(contours, thresholds.excluded_points, 1024, 256);
 
     merge_close_contours(contours, merging_distance);
 
@@ -276,7 +278,10 @@ static Thresholds findTresholds(Mat & src)
     setMouseCallback(original_window, call_back_func, &data);
     thresh_callback( 0, &data );
 
-    waitKey();
+    int key = waitKey();
+    while (key != 114){
+        key = waitKey();
+    }
 
     return data.thresholds;
 }

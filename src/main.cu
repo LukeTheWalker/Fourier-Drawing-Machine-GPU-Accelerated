@@ -1,11 +1,12 @@
 #include <iostream>
 #include <fstream>
 #include <gmpxx.h>
+#include <cuda_runtime_api.h>
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
 #include "contour.hpp"
-#include "utils.hpp"
+#include "utils.cuh"
 #include "dft.hpp"
 #include "progress.hpp"
 

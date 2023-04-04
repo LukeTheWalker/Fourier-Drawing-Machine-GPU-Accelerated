@@ -11,6 +11,6 @@
 #include "utils.cuh"
 #include "streamCompaction.cuh"
 
-void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points, int ngroups, int lws); 
+void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points, int ngroups = 1024, int lws = 256); 
 
 #endif

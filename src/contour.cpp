@@ -197,9 +197,9 @@ void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & 
     findContours( canny_output, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_TC89_L1 );
 
     // filter_contour_by_hand(contours, thresholds.excluded_points);
-    filter_contour_by_hand_wrapper(contours, thresholds.excluded_points, 1024, 256);
+    filter_contour_by_hand_wrapper(contours, thresholds.excluded_points);
 
-    merge_close_contours(contours, merging_distance);
+    // merge_close_contours(contours, merging_distance);
 
     filter_vector_by_min(contours, min_size);
 

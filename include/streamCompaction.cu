@@ -1,3 +1,6 @@
+#ifndef STREAM_COMPACTION_H
+#define STREAM_COMPACTION_H
+
 #define PRINT 1
 
 #include <cuda_runtime_api.h>
@@ -9,7 +12,6 @@
 #include <map>
 
 #include "utils.cuh"
-#include "streamCompaction.cuh"
 
 __device__ int round_div_up_dev (int a, int b){
     return (a + b - 1)/b;
@@ -121,21 +123,6 @@ __global__ void scan_sliding_window(
 	}
 }
 
-
-struct check_array_membership {
-    __device__ int4 operator()(int4 dat_x, int4 dat_y, int4 * arr_x, int4 * arr_y, int n_quart_array) {
-        int4 res = {0, 0, 0, 0};
-        for (int i = 0; i < n_quart_array; i++){
-            res.x = res.x || (dat_x.x == arr_x[i].x && dat_y.x == arr_y[i].x) || (dat_x.x == arr_x[i].y && dat_y.x == arr_y[i].y) || (dat_x.x == arr_x[i].z && dat_y.x == arr_y[i].z) || (dat_x.x == arr_x[i].w && dat_y.x == arr_y[i].w);
-            res.y = res.y || (dat_x.y == arr_x[i].x && dat_y.y == arr_y[i].x) || (dat_x.y == arr_x[i].y && dat_y.y == arr_y[i].y) || (dat_x.y == arr_x[i].z && dat_y.y == arr_y[i].z) || (dat_x.y == arr_x[i].w && dat_y.y == arr_y[i].w);
-            res.z = res.z || (dat_x.z == arr_x[i].x && dat_y.z == arr_y[i].x) || (dat_x.z == arr_x[i].y && dat_y.z == arr_y[i].y) || (dat_x.z == arr_x[i].z && dat_y.z == arr_y[i].z) || (dat_x.z == arr_x[i].w && dat_y.z == arr_y[i].w);
-            res.w = res.w || (dat_x.w == arr_x[i].x && dat_y.w == arr_y[i].x) || (dat_x.w == arr_x[i].y && dat_y.w == arr_y[i].y) || (dat_x.w == arr_x[i].z && dat_y.w == arr_y[i].z) || (dat_x.w == arr_x[i].w && dat_y.w == arr_y[i].w);
-        }
-        return {!res.x, !res.y, !res.z, !res.w};
-    }
-};
-
-
 __global__ void scan_fixup (int4 *d_out, int *d_tails, int nquarts, int preferred_wg_multiple){
     const int nwg = gridDim.x;
 	const int group_id = blockIdx.x;
@@ -165,10 +152,11 @@ __global__ void scan_fixup (int4 *d_out, int *d_tails, int nquarts, int preferre
 	}
 }
 
+template <typename F>
 __global__ void compute_flags(int4 *d_contours_x, int4 *d_contours_y, int4 *d_excluded_points_x, int4 *d_excluded_points_y, int4 *d_flag, int nquarts, int n_quarts_excluded_points_size){
     int gi = blockIdx.x * blockDim.x + threadIdx.x;
     if (gi < nquarts) {
-        d_flag[gi] = check_array_membership()(d_contours_x[gi], d_contours_y[gi], d_excluded_points_x, d_excluded_points_y, n_quarts_excluded_points_size);
+        d_flag[gi] = F()(d_contours_x[gi], d_contours_y[gi], d_excluded_points_x, d_excluded_points_y, n_quarts_excluded_points_size);
     }
 }
 
@@ -183,3 +171,4 @@ __global__ void move_elements (int *d_contours_x, int *d_contours_y, int *dest_x
     dest_x[pos] = d_contours_x[gi];
     dest_y[pos] = d_contours_y[gi];
 }
+#endif

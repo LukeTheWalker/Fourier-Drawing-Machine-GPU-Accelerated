@@ -4,7 +4,7 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 #include "utils.cuh"
-#include "contour_dev.cuh"
+#include "contour_dev.cu"
 #include "contour.hpp"
 
 using namespace cv;

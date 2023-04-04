@@ -1,3 +1,6 @@
+#ifndef FILTER_CONTOUR_BY_HAND_WRAPPER_H
+#define FILTER_CONTOUR_BY_HAND_WRAPPER_H
+
 #define PRINT_CONTOUR 0
 #include <cuda_runtime.h>
 
@@ -9,12 +12,25 @@
 #include "contour.hpp"
 
 #include "utils.cuh"
-#include "streamCompaction.cuh"
+#include "streamCompaction.cu"
 
 using namespace std;
 
-void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points, int ngroups, int lws){
-    int *d_contours_x, *d_contours_y, *d_excluded_points_x, *d_excluded_points_y, *d_contours_sizes;
+struct check_array_membership {
+    __device__ int4 operator()(int4 dat_x, int4 dat_y, int4 * arr_x, int4 * arr_y, int n_quart_array) {
+        int4 res = {0, 0, 0, 0};
+        for (int i = 0; i < n_quart_array; i++){
+            res.x = res.x || (dat_x.x == arr_x[i].x && dat_y.x == arr_y[i].x) || (dat_x.x == arr_x[i].y && dat_y.x == arr_y[i].y) || (dat_x.x == arr_x[i].z && dat_y.x == arr_y[i].z) || (dat_x.x == arr_x[i].w && dat_y.x == arr_y[i].w);
+            res.y = res.y || (dat_x.y == arr_x[i].x && dat_y.y == arr_y[i].x) || (dat_x.y == arr_x[i].y && dat_y.y == arr_y[i].y) || (dat_x.y == arr_x[i].z && dat_y.y == arr_y[i].z) || (dat_x.y == arr_x[i].w && dat_y.y == arr_y[i].w);
+            res.z = res.z || (dat_x.z == arr_x[i].x && dat_y.z == arr_y[i].x) || (dat_x.z == arr_x[i].y && dat_y.z == arr_y[i].y) || (dat_x.z == arr_x[i].z && dat_y.z == arr_y[i].z) || (dat_x.z == arr_x[i].w && dat_y.z == arr_y[i].w);
+            res.w = res.w || (dat_x.w == arr_x[i].x && dat_y.w == arr_y[i].x) || (dat_x.w == arr_x[i].y && dat_y.w == arr_y[i].y) || (dat_x.w == arr_x[i].z && dat_y.w == arr_y[i].z) || (dat_x.w == arr_x[i].w && dat_y.w == arr_y[i].w);
+        }
+        return {!res.x, !res.y, !res.z, !res.w};
+    }
+};
+
+void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points, int ngroups = 1024, int lws = 256){
+    int *d_contours_x, *d_contours_y, *d_excluded_points_x, *d_excluded_points_y;
     int *h_contours_x, *h_contours_y, *h_excluded_points_x, *h_excluded_points_y, *h_contours_sizes;
     int *d_flags;
     int contours_linear_size = 0;
@@ -57,18 +73,16 @@ void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_s
     err = cudaMalloc((void **)&d_contours_y, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_excluded_points_x, excluded_points_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_excluded_points_y, excluded_points_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_contours_sizes, number_of_countours * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_flags, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
 
     err = cudaMemcpy(d_contours_x, h_contours_x, contours_linear_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(d_contours_y, h_contours_y, contours_linear_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(d_excluded_points_x, h_excluded_points_x, excluded_points_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(d_excluded_points_y, h_excluded_points_y, excluded_points_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(d_contours_sizes, h_contours_sizes, number_of_countours * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
     int nquarts_flags = round_div_up(contours_linear_size, 4);
     int nquarts_excluded_points = round_div_up(excluded_points_size, 4);
-    compute_flags<<<round_div_up(nquarts_flags, 256), 256>>>((int4*)d_contours_x, (int4*)d_contours_y, (int4*)d_excluded_points_x, (int4*)d_excluded_points_y, (int4*)d_flags, nquarts_flags, nquarts_excluded_points);
+    compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>((int4*)d_contours_x, (int4*)d_contours_y, (int4*)d_excluded_points_x, (int4*)d_excluded_points_y, (int4*)d_flags, nquarts_flags, nquarts_excluded_points);
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -184,7 +198,6 @@ void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_s
     cudaFree(d_contours_y);
     cudaFree(d_excluded_points_x);
     cudaFree(d_excluded_points_y);
-    cudaFree(d_contours_sizes);
     cudaFree(d_flags);
     cudaFree(d_positions);
     cudaFree(d_tails);
@@ -237,3 +250,4 @@ int test() {
     }
     return 0;
 }
+#endif

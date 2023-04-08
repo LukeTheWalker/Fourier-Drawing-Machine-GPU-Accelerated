@@ -291,8 +291,8 @@ static Thresholds findTresholds(Mat & src)
     data.src = src;
     data.cursor = Point(-1, -1);
     data.thresholds.sigma = 3;
-    data.thresholds.canny_low = 200;
-    data.thresholds.canny_high = 200;
+    data.thresholds.canny_low = 10;
+    data.thresholds.canny_high = 100;
     data.thresholds.min_size = 0;
     data.thresholds.brush_size = 10;
     data.thresholds.merging_distance = 0;

@@ -29,6 +29,20 @@ struct check_array_membership {
     }
 };
 
+void get_after_filter_contours(vector<vector<Point>> &after_filter_contours, int *h_contours_x_out, int *h_contours_y_out, int *after_filter_contours_sizes, int after_filter_number_of_contours){
+    int idx = 0;
+    cout << "Number of contours: " << after_filter_number_of_contours << endl;
+    for (int i = 0; i < after_filter_number_of_contours; i++){
+        vector<Point> contour;
+        for (int j = 0; j < after_filter_contours_sizes[i]; j++){
+            contour.push_back(Point(h_contours_x_out[idx], h_contours_y_out[idx]));
+            idx++;
+        }
+        if (contour.size() > 0)
+            after_filter_contours.push_back(contour);
+    }
+}
+
 void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points, int ngroups = 1024, int lws = 256){
     int *d_contours_x, *d_contours_y, *d_excluded_points_x, *d_excluded_points_y;
     int *h_contours_x, *h_contours_y, *h_excluded_points_x, *h_excluded_points_y, *h_contours_sizes;
@@ -68,7 +82,6 @@ void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_s
 
     cudaError_t err;
 
-
     err = cudaMalloc((void **)&d_contours_x, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_contours_y, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_excluded_points_x, excluded_points_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
@@ -92,7 +105,7 @@ void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_s
     printf("\n");
     #endif
 
-    int *d_positions, *h_positions, *d_tails;
+    int *d_positions, *d_tails;
 
     int ntails = ngroups > 1 ? round_mul_up(ngroups, 4) : ngroups;
     err = cudaMalloc((void **)&d_positions, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
@@ -143,18 +156,16 @@ void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_s
     printf("\n");
     #endif
 
+    int *h_positions;
+
     err = cudaMallocHost(&h_positions, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(h_positions, d_positions, contours_linear_size * sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
 
     int *after_filter_contours_sizes = (int*)malloc(number_of_countours * sizeof(int));
     uint32_t cnt = 0;
-    vector<int> skip_contour;
     for (int i = 0; i < number_of_countours; i++){
         cnt += h_contours_sizes[i];
         after_filter_contours_sizes[i] = h_positions[cnt-1] - (i == 0 ? 0 : h_positions[cnt - h_contours_sizes[i] - 1]);
-        if (after_filter_contours_sizes[i] == 0){
-            skip_contour.push_back(i);
-        }
         #if PRINT_CONTOUR
         printf("cnt = %d | ", cnt);
         printf("before: %d has size %d => ", i, h_contours_sizes[i]);
@@ -169,21 +180,11 @@ void filter_contour_by_hand_wrapper(vector<vector<Point>> &contours, unordered_s
     err = cudaMemcpy(h_contours_y_out, d_contours_y_out, contours_linear_size * sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
 
     vector<vector<Point>> after_filter_contours;
-    idx = 0;
-    for (int i = 0; i < number_of_countours; i++){
-        if (find(skip_contour.begin(), skip_contour.end(), i) != skip_contour.end()) continue;
-        
-        vector<Point> contour;
-        for (int j = 0; j < after_filter_contours_sizes[i]; j++){
-            contour.push_back(Point(h_contours_x_out[idx], h_contours_y_out[idx]));
-            idx++;
-        }
-        after_filter_contours.push_back(contour);
-        cnt -= after_filter_contours_sizes[i];
-    }
+    get_after_filter_contours(after_filter_contours, h_contours_x_out, h_contours_y_out, after_filter_contours_sizes, number_of_countours);
+
     contours = after_filter_contours;
 
-    free(h_contours_x);
+    free(h_contours_x); 
     free(h_contours_y);
     free(h_excluded_points_x);
     free(h_excluded_points_y);

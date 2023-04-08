@@ -4,7 +4,7 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 #include "utils.cuh"
-#include "contour_dev.cu"
+#include "filter_contour_by_hand.cu"
 #include "contour.hpp"
 
 using namespace cv;
@@ -14,6 +14,31 @@ static const char *contour_window = "Contour Map";
 static const char *original_window = "Original";
 
 static vector<vector<double> > DEBUG_distances;
+
+/*void from_device_to_host(int * d_contours_x, int * d_contours_y, int * d_contours_sizes, int number_of_countours){
+    int * h_positions;
+    cudaError_t err;
+
+    err = cudaMallocHost(&h_positions, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(h_positions, d_positions, contours_linear_size * sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
+
+
+    int *after_filter_contours_sizes = (int*)malloc(number_of_countours * sizeof(int));
+    uint32_t cnt = 0;
+    vector<int> skip_contour;
+    for (int i = 0; i < number_of_countours; i++){
+        cnt += h_contours_sizes[i];
+        after_filter_contours_sizes[i] = h_positions[cnt-1] - (i == 0 ? 0 : h_positions[cnt - h_contours_sizes[i] - 1]);
+        if (after_filter_contours_sizes[i] == 0){
+            skip_contour.push_back(i);
+        }
+        #if PRINT_CONTOUR
+        printf("cnt = %d | ", cnt);
+        printf("before: %d has size %d => ", i, h_contours_sizes[i]);
+        printf("after : %d has size %d\n", i, after_filter_contours_sizes[i]);
+        #endif
+    }
+}*/
 
 void call_back_func(int event, int x, int y, int flags, void* _data){
     CallbackData *data = (CallbackData *) _data;
@@ -178,6 +203,23 @@ void draw_minimum_distances(vector<vector<Point>> &points, vector<vector<double>
     }
 }
 
+void cpu_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashFunction> & excluded_points, double merging_distance, int min_size) {
+    // filter_contour_by_hand(contours, excluded_points);
+    filter_contour_by_hand_wrapper(contours, excluded_points);
+    merge_close_contours(contours, merging_distance);
+    filter_vector_by_min(contours, min_size);
+    remove_all_duplicate_points(contours);
+    biggest_contour_first(contours);
+}
+
+void cuda_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashFunction> & excluded_points, double merging_distance, int min_size) {
+    filter_contour_by_hand_wrapper(contours, excluded_points);
+    // merge_close_contours(contours, merging_distance);
+    // filter_vector_by_min(contours, min_size);
+    // remove_all_duplicate_points(contours);
+    // biggest_contour_first(contours);
+}
+
 void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & points){
     int canny_low = thresholds.canny_low;
     int canny_high = thresholds.canny_high;
@@ -196,16 +238,8 @@ void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & 
     vector<Vec4i> hierarchy;
     findContours( canny_output, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_TC89_L1 );
 
-    // filter_contour_by_hand(contours, thresholds.excluded_points);
-    filter_contour_by_hand_wrapper(contours, thresholds.excluded_points);
-
-    // merge_close_contours(contours, merging_distance);
-
-    filter_vector_by_min(contours, min_size);
-
-    remove_all_duplicate_points(contours);
-
-    biggest_contour_first(contours);
+    cpu_pipeline(contours, thresholds.excluded_points, merging_distance, min_size);
+    // cuda_pipeline(contours, thresholds.excluded_points, merging_distance, min_size);
 
     vector<vector<double>> distances;
     compute_minimum_distance_beetween_contours(contours, distances);
@@ -257,8 +291,8 @@ static Thresholds findTresholds(Mat & src)
     data.src = src;
     data.cursor = Point(-1, -1);
     data.thresholds.sigma = 3;
-    data.thresholds.canny_low = 10;
-    data.thresholds.canny_high = 100;
+    data.thresholds.canny_low = 200;
+    data.thresholds.canny_high = 200;
     data.thresholds.min_size = 0;
     data.thresholds.brush_size = 10;
     data.thresholds.merging_distance = 0;

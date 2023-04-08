@@ -104,7 +104,7 @@ template<typename T>
 void print_array_dev (T * d_a, int n) {
     for (int i = 0; i < n; i++){
         T tail;
-        printf("Accessing address %p\n", d_a+i);
+        // printf("Accessing address %p\n", d_a+i);
         cudaError_t err = cudaMemcpy(&tail, d_a+i, sizeof(T), cudaMemcpyDeviceToHost);
         cuda_err_check(err, __FILE__, __LINE__);
         printf("%u ", tail);

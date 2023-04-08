@@ -171,4 +171,28 @@ __global__ void move_elements (int *d_contours_x, int *d_contours_y, int *dest_x
     dest_x[pos] = d_contours_x[gi];
     dest_y[pos] = d_contours_y[gi];
 }
+
+void get_after_filter_contours(vector<vector<Point>> &after_filter_contours, int *d_contours_x_out, int *d_contours_y_out, int after_filter_contours_linear_size, int *after_filter_contours_sizes, int number_of_contours){
+    int *h_contours_x_out = (int*)malloc(after_filter_contours_linear_size * sizeof(int));
+    int *h_contours_y_out = (int*)malloc(after_filter_contours_linear_size * sizeof(int));
+
+    cudaError_t err = cudaMemcpy(h_contours_x_out, d_contours_x_out, after_filter_contours_linear_size * sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(h_contours_y_out, d_contours_y_out, after_filter_contours_linear_size * sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
+
+    int idx = 0;
+    // cout << "Number of contours: " << after_filter_number_of_contours << endl;
+    for (int i = 0; i < number_of_contours; i++){
+        vector<Point> contour;
+        for (int j = 0; j < after_filter_contours_sizes[i]; j++){
+            contour.push_back(Point(h_contours_x_out[idx], h_contours_y_out[idx]));
+            idx++;
+        }
+        if (contour.size() > 0)
+            after_filter_contours.push_back(contour);
+    }
+
+    free(h_contours_x_out);
+    free(h_contours_y_out);
+}
+
 #endif

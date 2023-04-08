@@ -204,7 +204,7 @@ void draw_minimum_distances(vector<vector<Point>> &points, vector<vector<double>
 }
 
 void cpu_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashFunction> & excluded_points, double merging_distance, int min_size) {
-    // filter_contour_by_hand(contours, excluded_points);
+    filter_contour_by_hand(contours, excluded_points);
     filter_contour_by_hand_wrapper(contours, excluded_points);
     merge_close_contours(contours, merging_distance);
     filter_vector_by_min(contours, min_size);

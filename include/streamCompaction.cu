@@ -152,11 +152,12 @@ __global__ void scan_fixup (int4 *d_out, int *d_tails, int nquarts, int preferre
 	}
 }
 
-template <typename F>
-__global__ void compute_flags(int4 *d_contours_x, int4 *d_contours_y, int4 *d_excluded_points_x, int4 *d_excluded_points_y, int4 *d_flag, int nquarts, int n_quarts_excluded_points_size){
+template <typename F, typename... Args>
+// __global__ void compute_flags(int nquarts, int4 *d_contours_x, int4 *d_contours_y, int4 *d_excluded_points_x, int4 *d_excluded_points_y, int4 *d_flag, int n_quarts_excluded_points_size){
+__global__ void compute_flags(int nquarts, int4 *d_flag, Args... args){
     int gi = blockIdx.x * blockDim.x + threadIdx.x;
     if (gi < nquarts) {
-        d_flag[gi] = F()(d_contours_x[gi], d_contours_y[gi], d_excluded_points_x, d_excluded_points_y, n_quarts_excluded_points_size);
+        d_flag[gi] = F()(gi, args...);
     }
 }
 

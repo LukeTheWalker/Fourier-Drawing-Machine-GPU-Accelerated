@@ -17,8 +17,10 @@
 using namespace std;
 
 struct check_array_membership {
-    __device__ int4 operator()(int4 dat_x, int4 dat_y, int4 * arr_x, int4 * arr_y, int n_quart_array) {
+    __device__ int4 operator()(int gi, int4 * dat_x_arr, int4 * dat_y_arr, int4 * arr_x, int4 * arr_y, int n_quart_array) {
         int4 res = {0, 0, 0, 0};
+        int4 dat_x = dat_x_arr[gi];
+        int4 dat_y = dat_y_arr[gi];
         for (int i = 0; i < n_quart_array; i++){
             res.x = res.x || (dat_x.x == arr_x[i].x && dat_y.x == arr_y[i].x) || (dat_x.x == arr_x[i].y && dat_y.x == arr_y[i].y) || (dat_x.x == arr_x[i].z && dat_y.x == arr_y[i].z) || (dat_x.x == arr_x[i].w && dat_y.x == arr_y[i].w);
             res.y = res.y || (dat_x.y == arr_x[i].x && dat_y.y == arr_y[i].x) || (dat_x.y == arr_x[i].y && dat_y.y == arr_y[i].y) || (dat_x.y == arr_x[i].z && dat_y.y == arr_y[i].z) || (dat_x.y == arr_x[i].w && dat_y.y == arr_y[i].w);
@@ -81,7 +83,7 @@ int filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_ou
 
     int nquarts_flags = round_div_up(contours_linear_size, 4);
     int nquarts_excluded_points = round_div_up(excluded_points_size, 4);
-    compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>((int4*)d_contours_x, (int4*)d_contours_y, (int4*)d_excluded_points_x, (int4*)d_excluded_points_y, (int4*)d_flags, nquarts_flags, nquarts_excluded_points);
+    compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, (int4*)d_contours_x, (int4*)d_contours_y, (int4*)d_excluded_points_x, (int4*)d_excluded_points_y, nquarts_excluded_points);
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 

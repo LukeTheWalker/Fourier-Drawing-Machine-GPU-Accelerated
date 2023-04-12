@@ -230,6 +230,8 @@ void cuda_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashF
 
     h_contours_sizes = (int*)malloc(sizes->number_of_contours * sizeof(int));
 
+    for (int i = 0; i < sizes->number_of_contours; i++) h_contours_sizes[i] = contours[i].size();
+
     filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes);
     // merge_close_contours(contours, merging_distance);
     // cout << "sizes are: "; for (int i = 0; i < number_of_countours; i++) cout << h_contours_sizes[i] << " "; cout << endl;

@@ -114,8 +114,8 @@ void fix_contours (int * d_contours_x, int * d_contours_y, int * d_contours_size
     printf("\n");
     #endif
 
-    err = cudaMemcpy(d_contours_x, d_contours_x_out, sizeof(int) * contours_linear_size, cudaMemcpyDefault); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(d_contours_y, d_contours_y_out, sizeof(int) * contours_linear_size, cudaMemcpyDefault); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(d_contours_x, d_contours_x_out, sizeof(int) * contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(d_contours_y, d_contours_y_out, sizeof(int) * contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
     err = cudaMemcpy(&(sizes->contours_linear_size), &d_scanned_sizes[sizes->number_of_contours - 1], sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
 

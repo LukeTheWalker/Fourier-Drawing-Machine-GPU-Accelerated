@@ -11,6 +11,11 @@
 using namespace cv;
 using namespace std;
 
+struct Sizes {
+    int number_of_contours;
+    int contours_linear_size;
+};
+
 struct HashFunction
   {
     size_t operator()(const Point& point) const
@@ -19,7 +24,7 @@ struct HashFunction
       size_t yHash = std::hash<int>()(point.y) << 1;
       return xHash ^ yHash;
     }
-  };
+};
 
 struct Thresholds {
     int sigma;

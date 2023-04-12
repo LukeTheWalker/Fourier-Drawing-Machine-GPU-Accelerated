@@ -3,8 +3,10 @@
 #include <unordered_set>
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
+
 #include "utils.cuh"
 #include "filter_contour_by_hand.cu"
+#include "filter_vector_by_min.cu"
 #include "contour.hpp"
 
 using namespace cv;
@@ -212,37 +214,41 @@ void cpu_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashFu
 }
 
 void cuda_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashFunction> & excluded_points, double merging_distance, int min_size) {
-    int *d_contours_x_out, *d_contours_y_out;
-    int contours_linear_size = 0;
-    int *after_filter_contours_sizes;
-    int number_of_countours = contours.size();
+    int *d_contours_x, *d_contours_y;
+    int *h_contours_sizes;
     cudaError_t err;
+    Sizes * sizes;
 
-    for (int i = 0; i < contours.size(); i++) contours_linear_size += contours[i].size();
+    sizes = (Sizes*)malloc(sizeof(Sizes));
+    sizes->number_of_contours = contours.size();
+    sizes->contours_linear_size = 0;
 
-    err = cudaMalloc((void **)&d_contours_x_out, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_contours_y_out, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    for (int i = 0; i < contours.size(); i++) sizes->contours_linear_size += contours[i].size();
 
-    after_filter_contours_sizes = (int*)malloc(number_of_countours * sizeof(int));
+    err = cudaMalloc((void **)&d_contours_x, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_contours_y, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
 
-    contours_linear_size = filter_contour_by_hand_wrapper(d_contours_x_out, d_contours_y_out, after_filter_contours_sizes, contours, excluded_points);
+    h_contours_sizes = (int*)malloc(sizes->number_of_contours * sizeof(int));
+
+    filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes);
     // merge_close_contours(contours, merging_distance);
-    filter_vector_by_min(contours, min_size);
+    // cout << "sizes are: "; for (int i = 0; i < number_of_countours; i++) cout << h_contours_sizes[i] << " "; cout << endl;
+    filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes);
     // remove_all_duplicate_points(contours);
     // biggest_contour_first(contours);
 
     vector<vector<Point>> after_filter_contours;
-    get_after_filter_contours(after_filter_contours, d_contours_x_out, d_contours_y_out, contours_linear_size, after_filter_contours_sizes, number_of_countours);
+    get_after_filter_contours(after_filter_contours, d_contours_x, d_contours_y, sizes->contours_linear_size, h_contours_sizes, sizes->number_of_contours);
     contours = after_filter_contours;
 
-    err = cudaFree(d_contours_x_out); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaFree(d_contours_y_out); cuda_err_check(err, __FILE__, __LINE__);
-    free(after_filter_contours_sizes);
+    err = cudaFree(d_contours_x); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaFree(d_contours_y); cuda_err_check(err, __FILE__, __LINE__);
+    free(h_contours_sizes);
+    free(sizes);
 
-    merge_close_contours(contours, merging_distance);
-    filter_vector_by_min(contours, min_size);
-    remove_all_duplicate_points(contours);
-    biggest_contour_first(contours);
+    // merge_close_contours(contours, merging_distance);
+    // remove_all_duplicate_points(contours);
+    // biggest_contour_first(contours);
 
 }
 

@@ -161,16 +161,15 @@ __global__ void compute_flags(int nquarts, int4 *d_flag, Args... args){
     }
 }
 
-__global__ void move_elements (int *d_contours_x, int *d_contours_y, int *dest_x, int *dest_y, int *d_flags, int *d_positions, int nels){
+__global__ void move_elements (int *d_in, int *d_out, int *d_flags, int *d_positions, int nels){
     int gi = threadIdx.x + blockIdx.x * blockDim.x;
     if (gi >= nels) return;
     if (!d_flags[gi]) return;
-    if (gi == 0) { dest_x[0] = d_contours_x[0]; dest_y[0] = d_contours_y[0]; return; }
+    if (gi == 0) { d_out[0] = d_in[0]; return; }
     
     int pos = d_positions[gi - 1];
 
-    dest_x[pos] = d_contours_x[gi];
-    dest_y[pos] = d_contours_y[gi];
+    d_out[pos] = d_in[gi];
 }
 
 void get_after_filter_contours(vector<vector<Point>> &after_filter_contours, int *d_contours_x_out, int *d_contours_y_out, int after_filter_contours_linear_size, int *after_filter_contours_sizes, int number_of_contours){

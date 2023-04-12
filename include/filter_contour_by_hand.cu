@@ -16,6 +16,18 @@
 
 using namespace std;
 
+__global__ void move_contours (int *d_contours_x, int *d_contours_y, int *dest_x, int *dest_y, int *d_flags, int *d_positions, int nels){
+    int gi = threadIdx.x + blockIdx.x * blockDim.x;
+    if (gi >= nels) return;
+    if (!d_flags[gi]) return;
+    if (gi == 0) { dest_x[0] = d_contours_x[0]; dest_y[0] = d_contours_y[0]; return; }
+    
+    int pos = d_positions[gi - 1];
+
+    dest_x[pos] = d_contours_x[gi];
+    dest_y[pos] = d_contours_y[gi];
+}
+
 struct check_array_membership {
     __device__ int4 operator()(int gi, int4 * dat_x_arr, int4 * dat_y_arr, int4 * arr_x, int4 * arr_y, int n_quart_array) {
         int4 res = {0, 0, 0, 0};
@@ -31,25 +43,20 @@ struct check_array_membership {
     }
 };
 
-int filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_out, int * after_filter_contours_sizes, vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points, int ngroups = 1024, int lws = 256){
+void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_out, int * after_filter_contours_sizes, vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points, Sizes * sizes, int ngroups = 1024, int lws = 256){
     int *d_contours_x, *d_contours_y, *d_excluded_points_x, *d_excluded_points_y;
     int *h_contours_x, *h_contours_y, *h_excluded_points_x, *h_excluded_points_y, *h_contours_sizes;
     int *d_flags;
-    int contours_linear_size = 0;
     int excluded_points_size = _excluded_points.size();
-    int number_of_countours = contours.size();
-
-    // calculate linear size as sum of all single sub-vectors
-    for (int i = 0; i < contours.size(); i++) contours_linear_size += contours[i].size();
     
     // allocate memory on the host for all the points
-    h_contours_x = (int *)malloc(contours_linear_size * sizeof(int));
-    h_contours_y = (int *)malloc(contours_linear_size * sizeof(int));
+    h_contours_x = (int *)malloc(sizes->contours_linear_size * sizeof(int));
+    h_contours_y = (int *)malloc(sizes->contours_linear_size * sizeof(int));
     h_excluded_points_x = (int *)malloc(excluded_points_size * sizeof(int));
     h_excluded_points_y = (int *)malloc(excluded_points_size * sizeof(int));
-    h_contours_sizes = (int *)malloc(number_of_countours * sizeof(int));
+    h_contours_sizes = (int *)malloc(sizes->number_of_contours * sizeof(int));
 
-    for (int i = 0; i < number_of_countours; i++) h_contours_sizes[i] = contours[i].size();
+    for (int i = 0; i < sizes->number_of_contours; i++) h_contours_sizes[i] = contours[i].size();
     
     int idx = 0;
     // printf("Positions original: ");
@@ -70,18 +77,18 @@ int filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_ou
 
     cudaError_t err;
 
-    err = cudaMalloc((void **)&d_contours_x, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_contours_y, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_contours_x, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_contours_y, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_excluded_points_x, excluded_points_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_excluded_points_y, excluded_points_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_flags, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_flags, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
 
-    err = cudaMemcpy(d_contours_x, h_contours_x, contours_linear_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(d_contours_y, h_contours_y, contours_linear_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(d_contours_x, h_contours_x, sizes->contours_linear_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(d_contours_y, h_contours_y, sizes->contours_linear_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(d_excluded_points_x, h_excluded_points_x, excluded_points_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(d_excluded_points_y, h_excluded_points_y, excluded_points_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
-    int nquarts_flags = round_div_up(contours_linear_size, 4);
+    int nquarts_flags = round_div_up(sizes->contours_linear_size, 4);
     int nquarts_excluded_points = round_div_up(excluded_points_size, 4);
     compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, (int4*)d_contours_x, (int4*)d_contours_y, (int4*)d_excluded_points_x, (int4*)d_excluded_points_y, nquarts_excluded_points);
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
@@ -89,23 +96,23 @@ int filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_ou
 
     #if PRINT_CONTOUR
     printf("Flags computed: ");
-    print_array_dev(d_flags, contours_linear_size);
+    print_array_dev(d_flags, sizes->contours_linear_size);
     printf("\n");
     #endif
 
     int *d_positions, *d_tails;
 
     int ntails = ngroups > 1 ? round_mul_up(ngroups, 4) : ngroups;
-    err = cudaMalloc((void **)&d_positions, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_positions, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_tails, ngroups * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
 
-    scan_sliding_window<<<ngroups, lws, lws*sizeof(int)>>>((int4*)d_flags, (int4*)d_positions, d_tails, round_div_up(contours_linear_size, 4), 32);
+    scan_sliding_window<<<ngroups, lws, lws*sizeof(int)>>>((int4*)d_flags, (int4*)d_positions, d_tails, round_div_up(sizes->contours_linear_size, 4), 32);
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
     #if PRINT_CONTOUR
     printf("Positions computed: ");
-    print_array_dev(d_positions, contours_linear_size);
+    print_array_dev(d_positions, sizes->contours_linear_size);
     printf("\n");
     #endif
 
@@ -119,33 +126,33 @@ int filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_ou
     // printf("\n");
 
     if (ngroups > 1){
-        scan_fixup<<<ngroups, lws>>>((int4*)d_positions, d_tails, round_div_up(contours_linear_size, 4), 32);
+        scan_fixup<<<ngroups, lws>>>((int4*)d_positions, d_tails, round_div_up(sizes->contours_linear_size, 4), 32);
         err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     }
 
     #if PRINT_CONTOUR
     printf("Positions computed: ");
-    print_array_dev(d_positions, contours_linear_size);
+    print_array_dev(d_positions, sizes->contours_linear_size);
     printf("\n");
     #endif
 
-    move_elements<<<round_div_up(contours_linear_size, lws), lws>>>(d_contours_x, d_contours_y, d_contours_x_out, d_contours_y_out, d_flags, d_positions, contours_linear_size);
+    move_contours<<<round_div_up(sizes->contours_linear_size, lws), lws>>>(d_contours_x, d_contours_y, d_contours_x_out, d_contours_y_out, d_flags, d_positions, sizes->contours_linear_size);
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
     #if PRINT_CONTOUR
     printf("Contour x computed: ");
-    print_array_dev(d_contours_x_out, contours_linear_size);
+    print_array_dev(d_contours_x_out, sizes->contours_linear_size);
     printf("\n");
     #endif
 
     int *h_positions;
 
-    err = cudaMallocHost(&h_positions, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(h_positions, d_positions, contours_linear_size * sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMallocHost(&h_positions, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(h_positions, d_positions, sizes->contours_linear_size * sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
 
     uint32_t cnt = 0;
-    for (int i = 0; i < number_of_countours; i++){
+    for (int i = 0; i < sizes->number_of_contours; i++){
         cnt += h_contours_sizes[i];
         after_filter_contours_sizes[i] = h_positions[cnt-1] - (i == 0 ? 0 : h_positions[cnt - h_contours_sizes[i] - 1]);
         #if PRINT_CONTOUR
@@ -155,7 +162,7 @@ int filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_ou
         #endif
     }
 
-    int new_number_of_contours = h_positions[contours_linear_size - 1];
+    int contours_linear_size = h_positions[sizes->contours_linear_size - 1];
 
     free(h_contours_x); 
     free(h_contours_y);
@@ -173,7 +180,9 @@ int filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_ou
     cudaFree(d_positions);
     cudaFree(d_tails);
 
-    return new_number_of_contours;
+    sizes->contours_linear_size = contours_linear_size;
+
+    return;
 }
 
 int test() {

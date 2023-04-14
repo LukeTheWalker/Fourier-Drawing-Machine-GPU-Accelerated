@@ -7,6 +7,7 @@
 #include "utils.cuh"
 #include "filter_contour_by_hand.cu"
 #include "filter_vector_by_min.cu"
+#include "filter_contour_duplicate.cu"
 #include "contour.hpp"
 
 using namespace cv;
@@ -236,6 +237,7 @@ void cuda_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashF
     // merge_close_contours(contours, merging_distance);
     // cout << "sizes are: "; for (int i = 0; i < number_of_countours; i++) cout << h_contours_sizes[i] << " "; cout << endl;
     filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes);
+    // filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes);
     // remove_all_duplicate_points(contours);
     // biggest_contour_first(contours);
 
@@ -249,7 +251,7 @@ void cuda_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashF
     free(sizes);
 
     // merge_close_contours(contours, merging_distance);
-    // remove_all_duplicate_points(contours);
+
     // biggest_contour_first(contours);
 
 }

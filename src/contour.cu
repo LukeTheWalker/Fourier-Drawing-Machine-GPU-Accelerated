@@ -8,6 +8,7 @@
 #include "filter_contour_by_hand.cu"
 #include "filter_vector_by_min.cu"
 #include "filter_contour_duplicate.cu"
+#include "merge_contours.cu"
 #include "contour.hpp"
 
 using namespace cv;
@@ -234,10 +235,12 @@ void cuda_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashF
     for (int i = 0; i < sizes->number_of_contours; i++) h_contours_sizes[i] = contours[i].size();
 
     filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes);
-    // merge_close_contours(contours, merging_distance);
-    // cout << "sizes are: "; for (int i = 0; i < number_of_countours; i++) cout << h_contours_sizes[i] << " "; cout << endl;
     filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes);
-    // filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes);
+    filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes);
+    merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes);
+    // cout << "sizes->number_of_contours: " << sizes->number_of_contours << endl;
+    // cout << "sizes->contours_linear_size: " << sizes->contours_linear_size << endl;
+    // for (int i = 0; i < sizes->number_of_contours; i++) cout << "h_contours_sizes[" << i << "]: " << h_contours_sizes[i] << endl;
     // remove_all_duplicate_points(contours);
     // biggest_contour_first(contours);
 
@@ -251,7 +254,6 @@ void cuda_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashF
     free(sizes);
 
     // merge_close_contours(contours, merging_distance);
-
     // biggest_contour_first(contours);
 
 }
@@ -261,7 +263,7 @@ void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & 
     int canny_high = thresholds.canny_high;
     int sigma = thresholds.sigma;
     int min_size = thresholds.min_size;
-    double merging_distance = thresholds.merging_distance/10.0;
+    double merging_distance = thresholds.merging_distance;
     Mat canny_output, src_gray;
     vector<vector<Point> > contours;
 

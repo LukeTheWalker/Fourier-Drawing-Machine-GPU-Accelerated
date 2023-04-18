@@ -57,15 +57,19 @@ void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, in
     err = cudaMalloc((void **)&d_contours_x_out, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_contours_y_out, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
 
+    #if PRINT_DUP_FLAGS
     printf("Before filter:  ");
     print_array_dev(d_contours_x, sizes->contours_linear_size);
     printf("\n");
+    #endif
 
     filter_contour(d_contours_x, d_contours_y, h_contours_sizes, d_contours_x_out, d_contours_y_out, d_flags, sizes, ngroups, lws);
 
+    #if PRINT_DUP_FLAGS
     printf("After filter:   ");
     print_array_dev(d_contours_x_out, sizes->contours_linear_size);
     printf("\n");
+    #endif
 
     err = cudaMemcpy(d_contours_x, d_contours_x_out, sizes->contours_linear_size * sizeof(int), cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(d_contours_y, d_contours_y_out, sizes->contours_linear_size * sizeof(int), cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);

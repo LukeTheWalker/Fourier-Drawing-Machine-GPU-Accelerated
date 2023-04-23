@@ -131,8 +131,8 @@ void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_cont
     err = cudaMemset(d_closeness_matrix, 0, sizeof(char) * sizes->number_of_contours * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__); 
 
     uint64_t nels = (sizes->contours_linear_size * (sizes->contours_linear_size - 1)) / 2;
-    uint64_t gws = round_div_up(nels, 256);
-    compute_closeness_matrix<<<gws, 256>>>(d_contours_x, d_contours_y, d_reverse_lookup, d_closeness_matrix, sizes->contours_linear_size, sizes->number_of_contours, merge_distance);
+    uint64_t gws = round_div_up(nels, 1024);
+    compute_closeness_matrix<<<gws, 1024>>>(d_contours_x, d_contours_y, d_reverse_lookup, d_closeness_matrix, sizes->contours_linear_size, sizes->number_of_contours, merge_distance);
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 

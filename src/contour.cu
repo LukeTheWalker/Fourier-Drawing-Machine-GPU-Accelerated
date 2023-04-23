@@ -238,10 +238,6 @@ void cuda_pipeline(vector<vector<Point> > & contours, unordered_set<Point, HashF
     filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes);
     filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes);
     merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes);
-    // cout << "sizes->number_of_contours: " << sizes->number_of_contours << endl;
-    // cout << "sizes->contours_linear_size: " << sizes->contours_linear_size << endl;
-    // for (int i = 0; i < sizes->number_of_contours; i++) cout << "h_contours_sizes[" << i << "]: " << h_contours_sizes[i] << endl;
-    // remove_all_duplicate_points(contours);
     // biggest_contour_first(contours);
 
     vector<vector<Point>> after_filter_contours;
@@ -335,7 +331,9 @@ static Thresholds findTresholds(Mat & src)
     data.thresholds.brush_size = 10;
     data.thresholds.merging_distance = 0;
 
-    
+    // resize original image
+    resize(data.src, data.src, Size(), 0.5, 0.5);
+
     /// Create Window
     namedWindow( contour_window );
     imshow( original_window, src );

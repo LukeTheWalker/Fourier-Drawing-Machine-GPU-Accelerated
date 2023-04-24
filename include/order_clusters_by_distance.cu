@@ -72,8 +72,8 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
     err = cudaMalloc((void **)&d_distance_matrix, sizeof(uint32_t) * sizes->number_of_contours * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemset(d_distance_matrix, -1, sizeof(uint32_t) * sizes->number_of_contours * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__); 
 
-    uint64_t nels = (sizes->contours_linear_size * (sizes->contours_linear_size - 1)) / 2;
-    uint64_t gws = round_div_up(nels, 1024);
+    uint64_t nels = ((uint64_t)sizes->contours_linear_size * ((uint64_t)sizes->contours_linear_size - 1)) / 2;
+    uint64_t gws = round_div_up_64(nels, 1024);
     compute_distance_matrix<<<gws, 1024>>>(d_contours_x, d_contours_y, d_reverse_lookup, d_distance_matrix, sizes->contours_linear_size, sizes->number_of_contours);
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);

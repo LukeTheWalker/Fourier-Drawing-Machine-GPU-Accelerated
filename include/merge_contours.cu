@@ -16,6 +16,10 @@
 #include "utils.cuh"
 #include "streamCompaction.cu"
 
+uint64_t round_div_up_64 (uint64_t a, uint64_t b){
+    return (a + b - 1)/b;
+}
+
 __global__ void reverse_lookup_contours (int * d_scanned_sizes, int * d_reverse_lookup, int number_of_contours){
     int gi = blockIdx.x * blockDim.x + threadIdx.x;
     if (gi >= number_of_contours) return;
@@ -60,7 +64,7 @@ __global__ void compute_closeness_matrix (int * d_contours_x, int * d_contours_y
         #endif
         // printf("Accessing matrix index: %d", contour1 * number_of_contours + contour2);
         d_closeness_matrix[contour1 * number_of_contours + contour2] = 1;
-        d_closeness_matrix[contour2 * number_of_contours + contour1] = 1;
+        // d_closeness_matrix[contour2 * number_of_contours + contour1] = 1;
     }
 }
 
@@ -88,7 +92,6 @@ __global__ void reallign_contours (int* d_contours_x_in, int* d_contours_y_in, i
 void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_size, int merge_distance, Sizes * sizes, int ngroups = 1024, int lws = 256){
     int * d_scanned_sizes;
     int * d_contours_sizes;
-
 
     cudaError_t err = cudaMalloc((void **)&d_scanned_sizes, sizeof(int) * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_contours_sizes, sizeof(int) * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
@@ -130,8 +133,8 @@ void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_cont
     err = cudaMalloc((void **)&d_closeness_matrix, sizeof(char) * sizes->number_of_contours * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemset(d_closeness_matrix, 0, sizeof(char) * sizes->number_of_contours * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__); 
 
-    uint64_t nels = (sizes->contours_linear_size * (sizes->contours_linear_size - 1)) / 2;
-    uint64_t gws = round_div_up(nels, 1024);
+    uint64_t nels = ((uint64_t)sizes->contours_linear_size * ((uint64_t)sizes->contours_linear_size - 1)) / 2;
+    uint64_t gws = round_div_up_64(nels, 1024);
     compute_closeness_matrix<<<gws, 1024>>>(d_contours_x, d_contours_y, d_reverse_lookup, d_closeness_matrix, sizes->contours_linear_size, sizes->number_of_contours, merge_distance);
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);

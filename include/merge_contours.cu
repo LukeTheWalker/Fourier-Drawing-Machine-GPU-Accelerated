@@ -254,6 +254,7 @@ void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_cont
     err = cudaFree(d_merge_to); cuda_err_check(err, __FILE__, __LINE__);
 }
 
+#if 0
 void test_merge (){
     int h_contours_x [] = {4,5,1,9,4,3,1,30,11};
     int h_contours_y [] = {4,5,1,9,4,3,1,30,11};
@@ -279,13 +280,13 @@ void test_merge (){
     print_array_dev(d_contours_x, sizes.contours_linear_size);
     printf("\n");
 
-    merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, 10, &sizes);
+    // merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, 10, &sizes);
 
     printf("After: ");
     print_array_dev(d_contours_x, sizes.contours_linear_size);
     printf("\n");
 }
 
-
+#endif
 
 #endif

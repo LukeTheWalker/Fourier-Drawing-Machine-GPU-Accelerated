@@ -81,6 +81,7 @@ void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, in
     return;
 }
 
+#if 0
 void test_duplicate () {
     int h_contours_x [] = {4,5,1,2,4,3,1};
     int h_contours_y [] = {4,5,1,2,4,3,1};
@@ -106,11 +107,12 @@ void test_duplicate () {
     print_array_dev(d_contours_x, sizes.contours_linear_size);
     printf("\n");
 
-    filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, &sizes);
+    // filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, &sizes);
 
     printf("After: ");
     print_array_dev(d_contours_x, sizes.contours_linear_size);
     printf("\n");
 }
+#endif
 
 #endif

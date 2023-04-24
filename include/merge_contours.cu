@@ -89,7 +89,7 @@ __global__ void reallign_contours (int* d_contours_x_in, int* d_contours_y_in, i
 }
 
 
-void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_size, int merge_distance, Sizes * sizes, int ngroups = 1024, int lws = 256){
+void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_size, int merge_distance, Sizes * sizes, int lws = 256){
     int * d_scanned_sizes;
     int * d_contours_sizes;
 

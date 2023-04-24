@@ -219,6 +219,91 @@ void cpu_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & con
     order_clusters_by_minimum_distance(contours, distances, points);
 }
 
+void get_timings (int * d_contours_x, int * d_contours_y, int * h_contours_sizes, vector<vector<Point>> & contours, unordered_set<Point, HashFunction> & excluded_points, Sizes * sizes, double merging_distance, int min_size){
+    cudaEvent_t start, stop;
+
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cerr << "filter_contour_by_hand" << endl;
+    for (int lws = 32; lws <= 1024; lws *= 2){
+        for (int ngroups = 64; ngroups <= 8192; ngroups *= 2){
+            cudaEventRecord(start);
+            filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, ngroups, lws);
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            float milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, start, stop);
+            cerr << ngroups << " " << lws << " " << milliseconds << endl;
+        }
+    }
+
+    cerr << "--------------------------------------" << endl;
+    cerr << "merge_close_contours" << endl;
+
+    for (int lws = 32; lws <= 1024; lws *= 2){
+        for (int ngroups = 64; ngroups <= 8192; ngroups *= 2){
+            cudaEventRecord(start);
+            filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes, ngroups, lws);
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            float milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, start, stop);
+            cerr << ngroups << " " << lws << " " << milliseconds << endl;
+        }
+    }
+
+    cerr << "--------------------------------------" << endl;
+    cerr << "filter_vector_by_min" << endl;
+
+    for (int lws = 32; lws <= 1024; lws *= 2){
+        for (int ngroups = 64; ngroups <= 8192; ngroups *= 2){
+            cudaEventRecord(start);
+            filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, ngroups, lws);
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            float milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, start, stop);
+            cerr << ngroups << " " << lws << " " << milliseconds << endl;
+        }
+    }
+
+    cerr << "--------------------------------------" << endl;
+    cerr << "remove_all_duplicate_points" << endl;
+
+    for (int lws = 32; lws <= 1024; lws *= 2){
+        for (int ngroups = 64; ngroups <= 8192; ngroups *= 2){
+            cudaEventRecord(start);
+            merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes, lws);
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            float milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, start, stop);
+            cerr << ngroups << " " << lws << " " << milliseconds << endl;
+        }
+    }
+
+    cerr << "--------------------------------------" << endl;
+    cerr << "biggest_contour_first" << endl;
+
+    for (int lws = 32; lws <= 1024; lws *= 2){
+        for (int ngroups = 64; ngroups <= 8192; ngroups *= 2){
+            cudaEventRecord(start);
+            order_cluster_by_distance_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, lws);
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            float milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, start, stop);
+            cerr << ngroups << " " << lws << " " << milliseconds << endl;
+        }
+    }
+
+    cerr << "--------------------------------------" << endl;
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+}
+
 void cuda_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & contours, unordered_set<Point, HashFunction> & excluded_points, double merging_distance, int min_size) {
     int *d_contours_x, *d_contours_y;
     int *h_contours_sizes;
@@ -238,11 +323,15 @@ void cuda_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & co
 
     for (int i = 0; i < sizes->number_of_contours; i++) h_contours_sizes[i] = contours[i].size();
 
-    filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes);
-    filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes);
-    filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes);
-    merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes);
-    order_cluster_by_distance_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes);
+    #if 1
+    filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, 256, 64);
+    filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes, 256, 128);
+    filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 128, 1024);
+    merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes, 128);
+    order_cluster_by_distance_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 2048);
+    #else
+    get_timings(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, merging_distance, min_size);
+    #endif
 
     vector<vector<Point>> after_filter_contours;
     get_after_filter_contours(after_filter_contours, d_contours_x, d_contours_y, sizes->contours_linear_size, h_contours_sizes, sizes->number_of_contours);

@@ -47,7 +47,7 @@ __global__ void compute_distance_matrix(int * d_contours_x, int * d_contours_y, 
 
 }
 
-void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_size, Sizes * sizes, int ngroups = 1024, int lws = 256){
+void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_size, Sizes * sizes, int lws = 256){
     int * d_scanned_sizes;
     int * d_contours_sizes;
 

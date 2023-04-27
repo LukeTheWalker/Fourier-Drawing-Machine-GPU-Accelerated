@@ -48,7 +48,7 @@ __global__ void compute_closeness_matrix (int * d_contours_x, int * d_contours_y
     int contour1 = d_reverse_lookup[point1];
     int contour2 = d_reverse_lookup[point2];
 
-    if (contour1 == contour2) return;
+    if (contour1 == contour2 || d_closeness_matrix[contour1 * number_of_contours + contour2]) return;
 
 
     int x1 = d_contours_x[point1];

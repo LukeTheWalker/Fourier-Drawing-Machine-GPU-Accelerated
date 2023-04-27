@@ -42,9 +42,10 @@ __global__ void compute_distance_matrix(int * d_contours_x, int * d_contours_y, 
     int distance = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
 
 
-    d_distance_matrix[contour1 * number_of_contours + contour2] = distance;
-    d_distance_matrix[contour2 * number_of_contours + contour1] = distance;
-
+    if ((int)d_distance_matrix[contour1 * number_of_contours + contour2] == -1 || d_distance_matrix[contour1 * number_of_contours + contour2] > distance){
+        d_distance_matrix[contour1 * number_of_contours + contour2] = distance;
+        d_distance_matrix[contour2 * number_of_contours + contour1] = distance;
+    }
 }
 
 void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_size, Sizes * sizes, int lws = 256){

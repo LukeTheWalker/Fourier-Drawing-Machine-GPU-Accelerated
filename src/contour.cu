@@ -9,6 +9,7 @@
 #include "filter_vector_by_min.cu"
 #include "filter_contour_duplicate.cu"
 #include "merge_contours.cu"
+#include "timing.hpp"
 #include "order_clusters_by_distance.cu"
 #include "contour.hpp"
 
@@ -19,31 +20,6 @@ static const char *contour_window = "Contour Map";
 static const char *original_window = "Original";
 
 static vector<vector<double> > DEBUG_distances;
-
-/*void from_device_to_host(int * d_contours_x, int * d_contours_y, int * d_contours_sizes, int number_of_countours){
-    int * h_positions;
-    cudaError_t err;
-
-    err = cudaMallocHost(&h_positions, contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(h_positions, d_positions, contours_linear_size * sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
-
-
-    int *after_filter_contours_sizes = (int*)malloc(number_of_countours * sizeof(int));
-    uint32_t cnt = 0;
-    vector<int> skip_contour;
-    for (int i = 0; i < number_of_countours; i++){
-        cnt += h_contours_sizes[i];
-        after_filter_contours_sizes[i] = h_positions[cnt-1] - (i == 0 ? 0 : h_positions[cnt - h_contours_sizes[i] - 1]);
-        if (after_filter_contours_sizes[i] == 0){
-            skip_contour.push_back(i);
-        }
-        #if PRINT_CONTOUR
-        printf("cnt = %d | ", cnt);
-        printf("before: %d has size %d => ", i, h_contours_sizes[i]);
-        printf("after : %d has size %d\n", i, after_filter_contours_sizes[i]);
-        #endif
-    }
-}*/
 
 void call_back_func(int event, int x, int y, int flags, void* _data){
     CallbackData *data = (CallbackData *) _data;
@@ -82,9 +58,9 @@ void filter_contour_by_hand(vector<vector<Point>> &contours, unordered_set<Point
 
 void merge_close_contours (vector<vector<Point>> &contours, double min_distance){
     // merge contours that are close to each other
-    if (min_distance < 1){
-        return;
-    }
+    // if (min_distance < 1){
+    //     return;
+    // }
     vector<vector<Point>> new_contours;
     vector<bool> used(contours.size(), false);
     for (int i = 0; i < contours.size(); i++){
@@ -140,7 +116,16 @@ void biggest_contour_first(vector<vector<Point>> &contours){
 }
 
 double minimum_distance(vector<Point> &p1, vector<Point> &p2){
-    return norm(p1.back() - p2[0]);
+    double min_distance = norm(p1[0] - p2[0]);
+    for (int i = 0; i < p1.size(); i++){
+        for (int j = 0; j < p2.size(); j++){
+            double distance = norm(p1[i] - p2[j]);
+            if (distance < min_distance){
+                min_distance = distance;
+            }
+        }
+    }
+    return min_distance;
 }
 
 void compute_minimum_distance_beetween_contours(vector<vector<Point>> &contours, vector<vector<double>> &distances){
@@ -209,6 +194,16 @@ void draw_minimum_distances(vector<vector<Point>> &points, vector<vector<double>
 }
 
 void cpu_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & contours, unordered_set<Point, HashFunction> & excluded_points, double merging_distance, int min_size) {
+    #if 0
+    cout << funcTime(filter_contour_by_hand, contours, excluded_points) << " filter_contour_by_hand" << endl;
+    cout << funcTime(merge_close_contours, contours, merging_distance) << " merge_close_contours" << endl;
+    cout << funcTime(filter_vector_by_min, contours, min_size) << " filter_vector_by_min" << endl;
+    cout << funcTime(remove_all_duplicate_points, contours) << " remove_all_duplicate_points" << endl;
+    cout << funcTime(biggest_contour_first, contours) << " biggest_contour_first" << endl;
+    vector<vector<double>> distances;
+    cout << funcTime(compute_minimum_distance_beetween_contours, contours, distances) << " compute_minimum_distance_beetween_contours" << endl;
+    cout << funcTime(order_clusters_by_minimum_distance, contours, distances, points) << " order_clusters_by_minimum_distance" << endl;
+    #else
     filter_contour_by_hand(contours, excluded_points);
     merge_close_contours(contours, merging_distance);
     filter_vector_by_min(contours, min_size);
@@ -217,9 +212,10 @@ void cpu_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & con
     vector<vector<double>> distances;
     compute_minimum_distance_beetween_contours(contours, distances);
     order_clusters_by_minimum_distance(contours, distances, points);
+    #endif
 }
 
-void get_timings (int * d_contours_x, int * d_contours_y, int * h_contours_sizes, vector<vector<Point>> & contours, unordered_set<Point, HashFunction> & excluded_points, Sizes * sizes, double merging_distance, int min_size){
+void get_cuda_timings (int * d_contours_x, int * d_contours_y, int * h_contours_sizes, vector<vector<Point>> & contours, unordered_set<Point, HashFunction> & excluded_points, Sizes * sizes, double merging_distance, int min_size){
     cudaEvent_t start, stop;
 
     cudaEventCreate(&start);
@@ -324,11 +320,15 @@ void cuda_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & co
     for (int i = 0; i < sizes->number_of_contours; i++) h_contours_sizes[i] = contours[i].size();
 
     #if 1
-    filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, 256, 64);
+    filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, 64, 256); 
     filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes, 256, 128);
-    filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 128, 1024);
-    merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes, 128);
-    order_cluster_by_distance_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 2048);
+    filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 1024, 128);
+    order_cluster_by_distance_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 32);
+    // cout << funcTime(filter_contour_by_hand_wrapper, d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, 64, 256) << " filter contour by hand" << endl;
+    // cout << funcTime(filter_vector_by_min_wrapper, d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes, 256, 128) << " filter vector by min" << endl;
+    // cout << funcTime(filter_contour_duplicate_wrapper, d_contours_x, d_contours_y, h_contours_sizes, sizes, 1024, 128) << " filter contour duplicate" << endl;
+    // cout << funcTime(merge_contours_wrapper, d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes, 32) << " merge contours" << endl;
+    // cout << funcTime(order_cluster_by_distance_wrapper, d_contours_x, d_contours_y, h_contours_sizes, sizes, 32) << " order cluster by distance" << endl;
     #else
     get_timings(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, merging_distance, min_size);
     #endif
@@ -362,9 +362,18 @@ void apply_contours(Mat & src, Thresholds thresholds ,vector<vector <Point> > & 
     vector<Vec4i> hierarchy;
     findContours( canny_output, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_TC89_L1 );
 
+    #if 0
+    for (int i = contours.size() / 100; i < contours.size(); i += contours.size() / 100){
+        vector<vector<Point> > contours_tmp;
+        points.clear();
+        for (int j = 0; j < i; j++) contours_tmp.push_back(contours[j]);
+        // cerr << funcTime(cpu_pipeline, points, contours_tmp, thresholds.excluded_points, merging_distance, min_size) << "ms" << endl;
+        cerr << funcTime(cuda_pipeline, points, contours_tmp, thresholds.excluded_points, merging_distance, min_size) << "ms" << endl;
+    }
+    #else
     // cpu_pipeline(points, contours, thresholds.excluded_points, merging_distance, min_size);
     cuda_pipeline(points, contours, thresholds.excluded_points, merging_distance, min_size);
-    
+    #endif
     // return points;
 }
 

@@ -39,11 +39,11 @@ __global__ void reverse_lookup_contours (int * d_scanned_sizes, int * d_reverse_
         d_reverse_lookup[i] = gi;
     }
 
-    for (int i = ((start / 4) + 1) * 4; i < end - (end % 4); i++){
+    for (int i = ((start / 4) + 1) * 4; i < end - (end & 0x3); i++){
         ((int4 *)d_reverse_lookup)[i] = {gi,gi,gi,gi};
     } 
 
-    for (int i = end - (end % 4); i < end; i++){
+    for (int i = end - (end & 0x3); i < end; i++){
         d_reverse_lookup[i] = gi;
     }
 }

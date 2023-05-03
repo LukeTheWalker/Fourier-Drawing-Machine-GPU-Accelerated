@@ -26,8 +26,6 @@ __global__ void compute_distance_matrix(int * d_contours_x, int * d_contours_y, 
 
     // printf("Point1: %lu, Point2: %lu\n", point1, point2);
 
-    if (gi >= nels) return;
-
     if (gi >= nels || point1 == point2) return;
     
     int contour1 = d_reverse_lookup[point1];

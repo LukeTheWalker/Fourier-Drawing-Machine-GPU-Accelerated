@@ -2,6 +2,7 @@
 #define FILTER_CONTOUR_BY_HAND_WRAPPER_H
 
 #define PRINT_FLAGS 0
+#define PROFILING_HAND 0
 
 #include <cuda_runtime.h>
 
@@ -88,7 +89,26 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
 
     int nquarts_flags = round_div_up(sizes->contours_linear_size, 4);
     int nquarts_excluded_points = round_div_up(excluded_points_size, 4);
+
+    #if PROFILING_HAND
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
+    #endif
+
     compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, (int4*)d_contours_x, (int4*)d_contours_y, (int4*)d_excluded_points_x, (int4*)d_excluded_points_y, nquarts_excluded_points);
+    
+    #if PROFILING_HAND
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("compute_flags hand time: %f\n", milliseconds);
+    printf("GE/s: %f\n", (float)sizes->contours_linear_size / milliseconds / 1e6);
+    printf("GB/s: %f\n", ((float)sizes->contours_linear_size * sizeof(int) * 3 + (float)sizes->contours_linear_size * excluded_points_size * sizeof(int) * 4)/ milliseconds / 1e6);
+    #endif
+
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -108,6 +128,11 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
     cudaFree(d_excluded_points_x);
     cudaFree(d_excluded_points_y);
     cudaFree(d_flags);
+
+    #if PROFILING_HAND
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    #endif
 
     return;
 }

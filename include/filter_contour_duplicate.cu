@@ -2,6 +2,7 @@
 #define FILTER_CONTOUR_DUPLICATE_H
 
 #define PRINT_DUP_FLAGS 0
+#define PROFILE_DUP 0
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -16,14 +17,15 @@
 #include "utils.cuh"
 #include "filter_contour.cu"
 #include "streamCompaction.cu"
+#include "merge_contours.cu"
 
-__global__ void compute_duplicates_flags (int4 * d_contours_x, int4 * d_contours_y, int4 * d_flags, int nquarts_contours_linear_size){
-    int gi = threadIdx.x + blockIdx.x * blockDim.x;
-    int nels = (nquarts_contours_linear_size * (nquarts_contours_linear_size - 1)) / 2;
+__global__ void compute_duplicates_flags (int4 * d_contours_x, int4 * d_contours_y, int4 * d_flags, uint64_t contours_linear_size){
+    uint64_t gi = threadIdx.x + blockIdx.x * blockDim.x;
+    uint64_t nels = ((uint64_t)contours_linear_size * ((uint64_t)contours_linear_size - 1)) / 2;
 
-    int point1 = nquarts_contours_linear_size - 2 - floor(sqrt((double)-8*gi + 4*nquarts_contours_linear_size*(nquarts_contours_linear_size-1)-7)/2.0 - 0.5);
-    int point2 = gi + point1 + 1 - nquarts_contours_linear_size*(nquarts_contours_linear_size-1)/2 + (nquarts_contours_linear_size-point1)*((nquarts_contours_linear_size-point1)-1)/2;
-
+    uint64_t point1 = (uint64_t)contours_linear_size - 2 - floor(sqrt((double)-8*gi + 4*(uint64_t)contours_linear_size*((uint64_t)contours_linear_size-1)-7)/2.0 - 0.5);
+    uint64_t point2 = gi + point1 + 1 - (uint64_t)contours_linear_size*((uint64_t)contours_linear_size-1)/2 + ((uint64_t)contours_linear_size-point1)*(((uint64_t)contours_linear_size-point1)-1)/2;
+    
     if (gi >= nels || point1 == point2) return;
 
     d_flags[point2].x = d_flags[point2].x && !(d_contours_x[point1].x == d_contours_x[point2].x && d_contours_y[point1].x == d_contours_y[point2].x);
@@ -36,12 +38,35 @@ __global__ void compute_duplicates_flags (int4 * d_contours_x, int4 * d_contours
 void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_sizes, Sizes * sizes, int ngroups = 1024, int lws = 256){
     int *d_flags;
     cudaError_t err;
+
+    #if PROFILE_DUP
+    cudaEvent_t start, stop;
+    float time = 0;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    #endif
     
     err = cudaMalloc((void **)&d_flags, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     cuMemsetD32((CUdeviceptr)d_flags, 1, sizes->contours_linear_size);
 
-    int nquarts_flags = round_div_up(sizes->contours_linear_size, 4);
-    compute_duplicates_flags<<<round_div_up(nquarts_flags, 256), 256>>>((int4 *)d_contours_x, (int4 *)d_contours_y, (int4 *)d_flags, nquarts_flags);
+    uint64_t nquarts = round_div_up_64(sizes->contours_linear_size, 4);
+    uint64_t nels = ((uint64_t)nquarts * ((uint64_t)nquarts - 1)) / 2;
+    uint64_t gws = round_div_up_64(nels, 1024);
+
+    #if PROFILE_DUP
+    cudaEventRecord(start);
+    #endif
+
+    compute_duplicates_flags<<<gws, 1024>>>((int4 *)d_contours_x, (int4 *)d_contours_y, (int4 *)d_flags, nquarts);
+
+    #if PROFILE_DUP
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Time for duplicate flags: %f ms\n", time);
+    printf("GE/s: %f\n", (float)nels / time / 1e6);
+    printf("GB/s: %f\n", 20 * nels * sizeof(int) / time / 1e6);
+    #endif
 
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
@@ -77,6 +102,11 @@ void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, in
     err = cudaFree(d_contours_x_out); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_contours_y_out); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_flags); cuda_err_check(err, __FILE__, __LINE__);
+
+    #if PROFILE_DUP
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    #endif
 
     return;
 }

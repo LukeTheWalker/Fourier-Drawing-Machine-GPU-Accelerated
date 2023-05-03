@@ -1,6 +1,8 @@
 #ifndef CLUSTER_MIN_DISTANCE_H
 #define CLUSTER_MIN_DISTANCE_H
 
+#define PROFILE_ORDER_CLUSTER_BY_DISTANCE 0
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 
@@ -16,7 +18,7 @@
 #include "merge_contours.cu"
 
 __global__ void compute_distance_matrix(int * d_contours_x, int * d_contours_y, int * d_reverse_lookup, uint32_t * d_distance_matrix, int contours_linear_size, int number_of_contours){
-        uint64_t gi = threadIdx.x + blockIdx.x * blockDim.x;
+    uint64_t gi = threadIdx.x + blockIdx.x * blockDim.x;
     uint64_t nels = ((uint64_t)contours_linear_size * ((uint64_t)contours_linear_size - 1)) / 2;
 
     uint64_t point1 = (uint64_t)contours_linear_size - 2 - floor(sqrt((double)-8*gi + 4*(uint64_t)contours_linear_size*((uint64_t)contours_linear_size-1)-7)/2.0 - 0.5);
@@ -52,11 +54,31 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
     int * d_scanned_sizes;
     int * d_contours_sizes;
 
+    #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
+    cudaEvent_t start, stop;
+    float time = 0;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    #endif
+
     cudaError_t err = cudaMalloc((void **)&d_scanned_sizes, sizeof(int) * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_contours_sizes, sizeof(int) * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(d_contours_sizes, h_contours_size, sizeof(int) * sizes->number_of_contours, cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
+    #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
+    cudaEventRecord(start);
+    #endif
+
     scan_sliding_window<<<1, lws, lws*sizeof(int)>>>((int4*)d_contours_sizes, (int4*)d_scanned_sizes, NULL, round_div_up(sizes->number_of_contours, 4), 32);
+
+    #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Scan time: %f\n", time);
+    printf("GE/s = %f\n", (float)sizes->number_of_contours / time / 1.e6);
+    printf("GB/s = %f\n", (2 * (float)sizes->contours_linear_size * sizeof(int)) / time / 1.e6);
+    #endif
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -64,7 +86,22 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
 
     err = cudaMalloc((void **)&d_reverse_lookup, sizeof(int) * sizes->contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
 
+    #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
+    cudaEventRecord(start);
+    #endif
+
     reverse_lookup_contours<<<round_div_up(sizes->number_of_contours, 256), 256>>>(d_scanned_sizes, d_reverse_lookup, sizes->number_of_contours);
+    
+    #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Reverse lookup time: %f\n", time);
+    printf("GE/s: %f\n", (float)sizes->number_of_contours / time / 1e06);
+    printf("GB/s = %f\n", (2 * (float)sizes->number_of_contours * sizeof(int) + (float)sizes->contours_linear_size * sizeof(int)) / time / 1.e6);
+    #endif
+
+    
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -75,7 +112,22 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
 
     uint64_t nels = ((uint64_t)sizes->contours_linear_size * ((uint64_t)sizes->contours_linear_size - 1)) / 2;
     uint64_t gws = round_div_up_64(nels, 1024);
+
+    #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
+    cudaEventRecord(start);
+    #endif
+
     compute_distance_matrix<<<gws, 1024>>>(d_contours_x, d_contours_y, d_reverse_lookup, d_distance_matrix, sizes->contours_linear_size, sizes->number_of_contours);
+
+    #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Distance matrix time: %f\n", time);
+    printf("GE/s: %f\n", (float)nels / time / 1e06);
+    printf("GB/s = %f\n", (10 * (float)nels * sizeof(int) + (float)sizes->contours_linear_size * sizeof(int)) / time / 1.e6);
+    #endif
+
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -154,6 +206,11 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
     free(h_visited);
     free(h_scanned_sizes);
     free(h_new_contours_size);
+
+    #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    #endif
 
     return;
 }

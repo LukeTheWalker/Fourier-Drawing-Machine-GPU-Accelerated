@@ -2,6 +2,7 @@
 #define MERGE_CONTOURS_H
 
 #define PRINT_MERGE 0
+#define PROFILING_MERGE 0
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -27,9 +28,24 @@ __global__ void reverse_lookup_contours (int * d_scanned_sizes, int * d_reverse_
     int start = gi == 0 ? 0 : d_scanned_sizes[gi - 1];
     int end = d_scanned_sizes[gi];
 
-    for (int i = start; i < end; i++){
+    if (start - end <= 16){
+        for (int i = start; i < end; i++){
+            d_reverse_lookup[i] = gi;
+        } 
+        return;
+    }
+
+    for (int i = start; i < ((start / 4) + 1) * 4; i++){
         d_reverse_lookup[i] = gi;
+    }
+
+    for (int i = ((start / 4) + 1) * 4; i < end - (end % 4); i++){
+        ((int4 *)d_reverse_lookup)[i] = {gi,gi,gi,gi};
     } 
+
+    for (int i = end - (end % 4); i < end; i++){
+        d_reverse_lookup[i] = gi;
+    }
 }
 
 __global__ void compute_closeness_matrix (int * d_contours_x, int * d_contours_y, int * d_reverse_lookup, char * d_closeness_matrix, int contours_linear_size, int number_of_contours, int merge_distance){
@@ -92,8 +108,16 @@ __global__ void reallign_contours (int* d_contours_x_in, int* d_contours_y_in, i
 void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_size, int merge_distance, Sizes * sizes, int lws = 256){
     int * d_scanned_sizes;
     int * d_contours_sizes;
+    cudaError_t err;
 
-    cudaError_t err = cudaMalloc((void **)&d_scanned_sizes, sizeof(int) * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
+    #if PROFILING_MERGE
+    cudaEvent_t start, stop;
+    float time = 0;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    #endif
+
+    err = cudaMalloc((void **)&d_scanned_sizes, sizeof(int) * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_contours_sizes, sizeof(int) * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(d_contours_sizes, h_contours_size, sizeof(int) * sizes->number_of_contours, cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -104,7 +128,21 @@ void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_cont
     printf("\n");
     #endif
 
+    #if PROFILING_MERGE
+    cudaEventRecord(start);
+    #endif
+
     scan_sliding_window<<<1, lws, lws*sizeof(int)>>>((int4*)d_contours_sizes, (int4*)d_scanned_sizes, NULL, round_div_up(sizes->number_of_contours, 4), 32);
+    
+    #if PROFILING_MERGE
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Scan sliding window merge time: %f\n", time);
+    printf("GE/s: %f\n", (float)sizes->number_of_contours / time / 1e06);
+    printf("GB/s = %f\n", (2 * (float)sizes->contours_linear_size * sizeof(int)) / time / 1.e6);
+    #endif
+
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -118,7 +156,21 @@ void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_cont
 
     err = cudaMalloc((void **)&d_reverse_lookup, sizeof(int) * sizes->contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
 
+    #if PROFILING_MERGE
+    cudaEventRecord(start);
+    #endif
+
     reverse_lookup_contours<<<round_div_up(sizes->number_of_contours, 256), 256>>>(d_scanned_sizes, d_reverse_lookup, sizes->number_of_contours);
+
+    #if PROFILING_MERGE
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Reverse lookup merge time: %f\n", time);
+    printf("GE/s: %f\n", (float)sizes->number_of_contours / time / 1e06);
+    printf("GB/s = %f\n", (2 * (float)sizes->number_of_contours * sizeof(int) + 2 * (float)sizes->contours_linear_size * sizeof(int)) / time / 1.e6);
+    #endif
+
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -135,7 +187,22 @@ void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_cont
 
     uint64_t nels = ((uint64_t)sizes->contours_linear_size * ((uint64_t)sizes->contours_linear_size - 1)) / 2;
     uint64_t gws = round_div_up_64(nels, 1024);
+
+    #if PROFILING_MERGE
+    cudaEventRecord(start);
+    #endif
+
     compute_closeness_matrix<<<gws, 1024>>>(d_contours_x, d_contours_y, d_reverse_lookup, d_closeness_matrix, sizes->contours_linear_size, sizes->number_of_contours, merge_distance);
+
+    #if PROFILING_MERGE
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Compute closeness matrix merge time: %f\n", time);
+    printf("GE/s: %f\n", (float)nels / time / 1e06);
+    printf("GB/s = %f\n", (8 * (float)nels * sizeof(int)) / time / 1.e6);
+    #endif
+
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -231,7 +298,22 @@ void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_cont
     err = cudaMalloc((void **)&d_contours_x_out, sizeof(int) * sizes->contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_contours_y_out, sizeof(int) * sizes->contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
 
+    #if PROFILING_MERGE
+    cudaEventRecord(start);
+    #endif
+
     reallign_contours<<<round_div_up(sizes->contours_linear_size, 256), 256>>>(d_contours_x, d_contours_y, d_contours_x_out, d_contours_y_out, d_reverse_lookup, d_scanned_sizes, d_starts_at, d_cumulative_poisitions, d_merge_to, sizes->contours_linear_size);
+    
+    #if PROFILING_MERGE
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("reallign contours time: %f\n", time);
+    printf("GE/s: %f\n", (float)sizes->contours_linear_size / time / 1e6);
+    printf("GB/s: %f\n", ( 9 * (float)sizes->contours_linear_size * sizeof(int)) / time / 1e6);
+    #endif
+
+
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -252,6 +334,11 @@ void merge_contours_wrapper(int * d_contours_x, int * d_contours_y, int * h_cont
     err = cudaFree(d_contours_y_out); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_cumulative_poisitions); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_merge_to); cuda_err_check(err, __FILE__, __LINE__);
+
+    #if PROFILING_MERGE
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    #endif
 }
 
 #if 0

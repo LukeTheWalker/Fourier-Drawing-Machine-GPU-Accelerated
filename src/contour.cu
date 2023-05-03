@@ -323,6 +323,7 @@ void cuda_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & co
     filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, 64, 256); 
     filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes, 256, 128);
     filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 1024, 128);
+    merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes, 32);
     order_cluster_by_distance_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 32);
     // cout << funcTime(filter_contour_by_hand_wrapper, d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, 64, 256) << " filter contour by hand" << endl;
     // cout << funcTime(filter_vector_by_min_wrapper, d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes, 256, 128) << " filter vector by min" << endl;

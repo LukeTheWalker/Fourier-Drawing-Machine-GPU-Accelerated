@@ -2,6 +2,7 @@
 #define FILTER_VECTOR_BY_MIN_H
 
 #define PRINT_MIN 0
+#define PROFILE_MIN 0
 
 #include <cuda_runtime.h>
 
@@ -35,18 +36,44 @@ __global__ void fill_afference_array (int * d_scanned_sizes, int * d_flags, int 
     int end = d_scanned_sizes[gi];
     // int size = end - start;
 
-    // cuMemsetD32((CUdeviceptr)&d_flags[start], d_contours_flags[gi], size);   
-    for (int i = start; i < end; i++){
+    for (int i = start; i < ((start / 4) + 1) * 4; i++){
         d_flags[i] = d_contours_flags[gi];
+    }
+
+    // cuMemsetD32((CUdeviceptr)&d_flags[start], d_contours_flags[gi], size);   
+    for (int i = ((start / 4) + 1) * 4; i < end - end % 4; i += 4){
+        ((int4 *)d_flags)[i/4] = ((int4*)d_contours_flags)[gi/4];
     } 
+
+    for (int i = end - end % 4; i < end; i++){
+        d_flags[i] = d_contours_flags[gi];
+    }
 }
 
 void fix_contours (int * d_contours_x, int * d_contours_y, int * d_contours_sizes, int * d_contours_flags, Sizes * sizes, int ngroups, int lws){
     int * d_scanned_sizes;
+    
+    #if PROFILE_MIN
+    cudaEvent_t start, stop;
+    float time = 0;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
+    #endif
 
     cudaError_t err = cudaMalloc((void **)&d_scanned_sizes, sizeof(int) * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
 
     scan_sliding_window<<<1, lws, lws*sizeof(int)>>>((int4*)d_contours_sizes, (int4*)d_scanned_sizes, NULL, round_div_up(sizes->number_of_contours, 4), 32);
+
+    #if PROFILE_MIN
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Scan time fix contours: %f ms\n", time);
+    printf("GE/s: %f\n", (float)sizes->number_of_contours / time / 1e06);
+    printf("GB/s = %f\n", (2 * (float)sizes->contours_linear_size * sizeof(int)) / time / 1.e6);
+    #endif
+
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
@@ -62,7 +89,21 @@ void fix_contours (int * d_contours_x, int * d_contours_y, int * d_contours_size
     err = cudaMemcpy(&contours_linear_size, &d_scanned_sizes[sizes->number_of_contours - 1], sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_flags, sizeof(int) * contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
 
+    #if PROFILE_MIN
+    cudaEventRecord(start);
+    #endif
+
     fill_afference_array<<<round_div_up(sizes->number_of_contours, 256), 256>>>(d_scanned_sizes, d_flags, sizes->number_of_contours, d_contours_flags);
+
+    #if PROFILE_MIN
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Fill time fix contours: %f ms\n", time);
+    printf("GE/s: %f\n", (float)sizes->number_of_contours / time / 1e06);
+    printf("GB/s = %f\n", (2 * (float)sizes->number_of_contours * sizeof(int) + 2 * (float)sizes->contours_linear_size * sizeof(int)) / time / 1.e6);
+    #endif
+
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 

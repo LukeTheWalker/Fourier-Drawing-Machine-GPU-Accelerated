@@ -217,6 +217,7 @@ void cpu_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & con
 
 void get_cuda_timings (int * d_contours_x, int * d_contours_y, int * h_contours_sizes, vector<vector<Point>> & contours, unordered_set<Point, HashFunction> & excluded_points, Sizes * sizes, double merging_distance, int min_size){
     cudaEvent_t start, stop;
+    cudaError_t err;
 
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -224,8 +225,21 @@ void get_cuda_timings (int * d_contours_x, int * d_contours_y, int * h_contours_
     cerr << "filter_contour_by_hand" << endl;
     for (int lws = 32; lws <= 1024; lws *= 2){
         for (int ngroups = 64; ngroups <= 8192; ngroups *= 2){
+            int * d_contours_x_tmp, * d_contours_y_tmp;
+            err = cudaMalloc((void **) &d_contours_x_tmp, sizeof(int) * sizes->contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
+            err = cudaMalloc((void **) &d_contours_y_tmp, sizeof(int) * sizes->contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
+
+            err = cudaMemcpy(d_contours_x_tmp, d_contours_x, sizeof(int) * sizes->contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
+            err = cudaMemcpy(d_contours_y_tmp, d_contours_y, sizeof(int) * sizes->contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
+
+            int * h_contours_sizes_tmp = (int *) malloc(sizeof(int) * sizes->number_of_contours);
+            memcpy(h_contours_sizes_tmp, h_contours_sizes, sizeof(int) * sizes->number_of_contours);
+
+            Sizes * sizes_tmp = (Sizes *) malloc(sizeof(Sizes));
+            memcpy(sizes_tmp, sizes, sizeof(Sizes));
+
             cudaEventRecord(start);
-            filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, ngroups, lws);
+            filter_contour_by_hand_wrapper(d_contours_x_tmp, d_contours_y_tmp, h_contours_sizes_tmp, contours, excluded_points, sizes_tmp, ngroups, lws);
             cudaEventRecord(stop);
             cudaEventSynchronize(stop);
             float milliseconds = 0;
@@ -233,6 +247,8 @@ void get_cuda_timings (int * d_contours_x, int * d_contours_y, int * h_contours_
             cerr << ngroups << " " << lws << " " << milliseconds << endl;
         }
     }
+
+    exit(0);
 
     cerr << "--------------------------------------" << endl;
     cerr << "merge_close_contours" << endl;
@@ -331,7 +347,7 @@ void cuda_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & co
     // cout << funcTime(merge_contours_wrapper, d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes, 32) << " merge contours" << endl;
     // cout << funcTime(order_cluster_by_distance_wrapper, d_contours_x, d_contours_y, h_contours_sizes, sizes, 32) << " order cluster by distance" << endl;
     #else
-    get_timings(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, merging_distance, min_size);
+    get_cuda_timings(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, merging_distance, min_size);
     #endif
 
     vector<vector<Point>> after_filter_contours;

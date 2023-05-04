@@ -144,12 +144,19 @@ void filter_contour (int * d_contours_x, int * d_contours_y, int * h_contours_si
     err = cudaMemcpy(h_positions, d_positions, sizes->contours_linear_size * sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
 
     uint32_t cnt = 0;
+    uint32_t cnt_n_contours = 0;
     for (int i = 0; i < sizes->number_of_contours; i++){
         cnt += h_contours_sizes[i];
-        h_contours_sizes[i] = h_positions[cnt-1] - (i == 0 ? 0 : h_positions[cnt - h_contours_sizes[i] - 1]);
+        int tmp_contour_size = h_positions[cnt-1] - (i == 0 ? 0 : h_positions[cnt - h_contours_sizes[i] - 1] );
+        
+        if (tmp_contour_size > 0){
+            h_contours_sizes[cnt_n_contours] = tmp_contour_size;
+            cnt_n_contours++;
+        }
     }
 
     sizes->contours_linear_size = h_positions[sizes->contours_linear_size - 1];
+    sizes->number_of_contours = cnt_n_contours;
 
     err = cudaFree(d_positions); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_tails); cuda_err_check(err, __FILE__, __LINE__);

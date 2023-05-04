@@ -36,16 +36,28 @@ __global__ void fill_afference_array (int * d_scanned_sizes, int * d_flags, int 
     int end = d_scanned_sizes[gi];
     // int size = end - start;
 
-    for (int i = start; i < ((start / 4) + 1) * 4; i++){
-        d_flags[i] = d_contours_flags[gi];
-    }
 
-    // cuMemsetD32((CUdeviceptr)&d_flags[start], d_contours_flags[gi], size);   
-    for (int i = ((start / 4) + 1) * 4; i < end - end % 4; i += 4){
-        ((int4 *)d_flags)[i/4] = ((int4*)d_contours_flags)[gi/4];
-    } 
+    // if (start - end <= 16){
+    //     for (int i = start; i < end; i++){
+    //         d_flags[i] = d_contours_flags[gi];
+    //     } 
+    //     return;
+    // }
 
-    for (int i = end - end % 4; i < end; i++){
+    // for (int i = start; i < ((start / 4) + 1) * 4; i++){
+    //     d_flags[i] = d_contours_flags[gi];
+    // }
+
+    // // cuMemsetD32((CUdeviceptr)&d_flags[start], d_contours_flags[gi], size);   
+    // for (int i = ((start / 4) + 1) * 4; i < end - (end & 0x3); i += 4){
+    //     ((int4 *)d_flags)[i/4] = ((int4*)d_contours_flags)[gi/4];
+    // } 
+
+    // for (int i = end - (end & 0x3); i < end; i++){
+    //     d_flags[i] = d_contours_flags[gi];
+    // }
+
+    for (int i = start; i < end; i++){
         d_flags[i] = d_contours_flags[gi];
     }
 }

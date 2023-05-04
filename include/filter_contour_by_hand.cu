@@ -172,14 +172,33 @@ int test() {
 
     cerr << "MISSING IMPORTANT DATA" << endl;
 
-    // filter_contour_by_hand_wrapper(contours, excluded_points, 256, 256);
+    int *d_contours_x, *d_contours_y;
+    int *h_contours_sizes;
+    cudaError_t err;
+    Sizes * sizes;
 
-    // for (int i = 0; i < contours.size(); i++){
-    //     for (int j = 0; j < contours[i].size(); j++){
-    //         printf("(%d, %d) ", contours[i][j].x, contours[i][j].y);
-    //     }
-    //     printf("\n");
-    // }
+    sizes = (Sizes*)malloc(sizeof(Sizes));
+    sizes->number_of_contours = contours.size();
+    sizes->contours_linear_size = 0;
+
+    for (int i = 0; i < contours.size(); i++) sizes->contours_linear_size += contours[i].size();
+
+    err = cudaMalloc((void **)&d_contours_x, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_contours_y, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+
+    h_contours_sizes = (int*)malloc(sizes->number_of_contours * sizeof(int));
+
+    for (int i = 0; i < sizes->number_of_contours; i++) h_contours_sizes[i] = contours[i].size();
+
+
+    filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes);
+
+    for (int i = 0; i < contours.size(); i++){
+        for (int j = 0; j < contours[i].size(); j++){
+            printf("(%d, %d) ", contours[i][j].x, contours[i][j].y);
+        }
+        printf("\n");
+    }
     return 0;
 }
 #endif

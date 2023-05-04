@@ -18,7 +18,7 @@
 #include "streamCompaction.cu"
 #include "merge_contours.cu"
 
-__global__ void compute_distance_matrix(int * d_contours_x, int * d_contours_y, int * d_reverse_lookup, uint32_t * d_distance_matrix, int contours_linear_size, int number_of_contours){
+__global__ void compute_distance_matrix(point * d_contours, int * d_reverse_lookup, uint32_t * d_distance_matrix, int contours_linear_size, int number_of_contours){
     uint64_t gi = threadIdx.x + blockIdx.x * blockDim.x;
     uint64_t nels = ((uint64_t)contours_linear_size * ((uint64_t)contours_linear_size - 1)) / 2;
 
@@ -35,13 +35,11 @@ __global__ void compute_distance_matrix(int * d_contours_x, int * d_contours_y, 
     if (contour1 == contour2) return;
 
 
-    int x1 = d_contours_x[point1];
-    int y1 = d_contours_y[point1];
-    int x2 = d_contours_x[point2];
-    int y2 = d_contours_y[point2];
+    point p1 = d_contours[point1];
+    point p2 = d_contours[point2];
 
-    int distance = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
-
+    // int distance = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
+    int distance = (p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y);
 
     if ((int)d_distance_matrix[contour1 * number_of_contours + contour2] == -1 || d_distance_matrix[contour1 * number_of_contours + contour2] > distance){
         d_distance_matrix[contour1 * number_of_contours + contour2] = distance;
@@ -49,7 +47,7 @@ __global__ void compute_distance_matrix(int * d_contours_x, int * d_contours_y, 
     }
 }
 
-void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_size, Sizes * sizes, int lws = 256){
+void order_cluster_by_distance_wrapper(point * d_contours, int * h_contours_size, Sizes * sizes, int lws = 256){
     int * d_scanned_sizes;
     int * d_contours_sizes;
 
@@ -116,7 +114,7 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
     cudaEventRecord(start);
     #endif
 
-    compute_distance_matrix<<<gws, 1024>>>(d_contours_x, d_contours_y, d_reverse_lookup, d_distance_matrix, sizes->contours_linear_size, sizes->number_of_contours);
+    compute_distance_matrix<<<gws, 1024>>>(d_contours, d_reverse_lookup, d_distance_matrix, sizes->contours_linear_size, sizes->number_of_contours);
 
     #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
     cudaEventRecord(stop);
@@ -164,11 +162,9 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
         from = to;
     }
 
-    int * d_contours_out_x;
-    int * d_contours_out_y;
+    point * d_contours_out;
 
-    err = cudaMalloc((void **)&d_contours_out_x, sizeof(int) * sizes->contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_contours_out_y, sizeof(int) * sizes->contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_contours_out, sizeof(point) * sizes->contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
 
     int * h_scanned_sizes = (int *)malloc(sizeof(int) * sizes->number_of_contours);
 
@@ -184,18 +180,15 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
     for (int i = 0; i < sizes->number_of_contours; i++){
         int contour_number = h_new_contours_relocation[i];
         int start_at = 0 ? contour_number == 0 : h_scanned_sizes[contour_number - 1];
-        err = cudaMemcpy(d_contours_out_x + sum, d_contours_x + start_at, sizeof(int) * h_contours_size[contour_number], cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
-        err = cudaMemcpy(d_contours_out_y + sum, d_contours_y + start_at, sizeof(int) * h_contours_size[contour_number], cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
+        err = cudaMemcpy(d_contours_out + sum, d_contours + start_at, sizeof(point) * h_contours_size[contour_number], cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
         sum += h_contours_size[contour_number];
     }
 
     memcpy(h_contours_size, h_new_contours_size, sizeof(int) * sizes->number_of_contours);
 
-    err = cudaMemcpy(d_contours_x, d_contours_out_x, sizeof(int) * sizes->contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(d_contours_y, d_contours_out_y, sizeof(int) * sizes->contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(d_contours, d_contours_out, sizeof(point) * sizes->contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
-    err = cudaFree(d_contours_out_x); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaFree(d_contours_out_y); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaFree(d_contours_out); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_reverse_lookup); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_distance_matrix); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_scanned_sizes); cuda_err_check(err, __FILE__, __LINE__);

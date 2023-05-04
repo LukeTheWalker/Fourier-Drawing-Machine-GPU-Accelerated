@@ -14,6 +14,9 @@
 using namespace cv;
 using namespace std;
 
+typedef int2 point;
+typedef int4 point2;
+
 template <typename T>
 Mat& draw_points(Mat &img, const vector<Point> &points)
 {

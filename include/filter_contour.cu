@@ -16,19 +16,19 @@
 #include "utils.cuh"
 #include "streamCompaction.cu"
 
-__global__ void move_contours (int *d_contours_x, int *d_contours_y, int *dest_x, int *dest_y, int *d_flags, int *d_positions, int nels){
+__global__ void move_contours (point *d_contours, point *dest, int *d_flags, int *d_positions, int nels){
     int gi = threadIdx.x + blockIdx.x * blockDim.x;
     if (gi >= nels) return;
     if (!d_flags[gi]) return;
-    if (gi == 0) { dest_x[0] = d_contours_x[0]; dest_y[0] = d_contours_y[0]; return; }
+    if (gi == 0) { dest[0] = d_contours[0]; return; }
     
     int pos = d_positions[gi - 1];
 
-    dest_x[pos] = d_contours_x[gi];
-    dest_y[pos] = d_contours_y[gi];
+    dest[pos] = d_contours[gi];
+
 }
 
-void filter_contour (int * d_contours_x, int * d_contours_y, int * h_contours_sizes,  int * d_contours_x_out, int * d_contours_y_out, int * d_flags, Sizes * sizes, int ngroups, int lws){
+void filter_contour (point * d_contours, int * h_contours_sizes,  point * d_contours_out, int * d_flags, Sizes * sizes, int ngroups, int lws){
     cudaError_t err;
     int *d_positions, *d_tails;
 
@@ -118,7 +118,7 @@ void filter_contour (int * d_contours_x, int * d_contours_y, int * h_contours_si
     err = cudaEventRecord(start, 0); cuda_err_check(err, __FILE__, __LINE__);
     #endif
 
-    move_contours<<<round_div_up(sizes->contours_linear_size, lws), lws>>>(d_contours_x, d_contours_y, d_contours_x_out, d_contours_y_out, d_flags, d_positions, sizes->contours_linear_size);
+    move_contours<<<round_div_up(sizes->contours_linear_size, lws), lws>>>(d_contours, d_contours_out, d_flags, d_positions, sizes->contours_linear_size);
 
     #if PROFILING_CONTOUR
     err = cudaEventRecord(stop, 0); cuda_err_check(err, __FILE__, __LINE__);

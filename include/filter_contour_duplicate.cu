@@ -19,7 +19,7 @@
 #include "streamCompaction.cu"
 #include "merge_contours.cu"
 
-__global__ void compute_duplicates_flags (int4 * d_contours_x, int4 * d_contours_y, int4 * d_flags, uint64_t contours_linear_size){
+__global__ void compute_duplicates_flags (point * d_contours, int * d_flags, uint64_t contours_linear_size){
     uint64_t gi = threadIdx.x + blockIdx.x * blockDim.x;
     uint64_t nels = ((uint64_t)contours_linear_size * ((uint64_t)contours_linear_size - 1)) / 2;
 
@@ -28,14 +28,11 @@ __global__ void compute_duplicates_flags (int4 * d_contours_x, int4 * d_contours
     
     if (gi >= nels || point1 == point2) return;
 
-    d_flags[point2].x = d_flags[point2].x && !(d_contours_x[point1].x == d_contours_x[point2].x && d_contours_y[point1].x == d_contours_y[point2].x);
-    d_flags[point2].y = d_flags[point2].y && !(d_contours_x[point1].y == d_contours_x[point2].y && d_contours_y[point1].y == d_contours_y[point2].y);
-    d_flags[point2].z = d_flags[point2].z && !(d_contours_x[point1].z == d_contours_x[point2].z && d_contours_y[point1].z == d_contours_y[point2].z);
-    d_flags[point2].w = d_flags[point2].w && !(d_contours_x[point1].w == d_contours_x[point2].w && d_contours_y[point1].w == d_contours_y[point2].w);
+    d_flags[point2] = d_flags[point2] && !(d_contours[point1].x == d_contours[point2].x && d_contours[point1].y == d_contours[point2].y);
     
 }
 
-void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_sizes, Sizes * sizes, int ngroups = 1024, int lws = 256){
+void filter_contour_duplicate_wrapper(point * d_contours, int * h_contours_sizes, Sizes * sizes, int ngroups = 1024, int lws = 256){
     int *d_flags;
     cudaError_t err;
 
@@ -49,7 +46,8 @@ void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, in
     err = cudaMalloc((void **)&d_flags, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     cuMemsetD32((CUdeviceptr)d_flags, 1, sizes->contours_linear_size);
 
-    uint64_t nquarts = round_div_up_64(sizes->contours_linear_size, 4);
+    // uint64_t nquarts = round_div_up_64(sizes->contours_linear_size, 4);
+    uint64_t nquarts = sizes->contours_linear_size;
     uint64_t nels = ((uint64_t)nquarts * ((uint64_t)nquarts - 1)) / 2;
     uint64_t gws = round_div_up_64(nels, 1024);
 
@@ -57,7 +55,7 @@ void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, in
     cudaEventRecord(start);
     #endif
 
-    compute_duplicates_flags<<<gws, 1024>>>((int4 *)d_contours_x, (int4 *)d_contours_y, (int4 *)d_flags, nquarts);
+    compute_duplicates_flags<<<gws, 1024>>>(d_contours, d_flags, nquarts);
 
     #if PROFILE_DUP
     cudaEventRecord(stop);
@@ -77,10 +75,9 @@ void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, in
     printf("\n");
     #endif
 
-    int * d_contours_x_out, * d_contours_y_out;
+    point * d_contours_out;
 
-    err = cudaMalloc((void **)&d_contours_x_out, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_contours_y_out, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_contours_out, sizes->contours_linear_size * sizeof(point)); cuda_err_check(err, __FILE__, __LINE__);
 
     #if PRINT_DUP_FLAGS
     printf("Before filter:  ");
@@ -88,7 +85,7 @@ void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, in
     printf("\n");
     #endif
 
-    filter_contour(d_contours_x, d_contours_y, h_contours_sizes, d_contours_x_out, d_contours_y_out, d_flags, sizes, ngroups, lws);
+    filter_contour(d_contours, h_contours_sizes, d_contours_out, d_flags, sizes, ngroups, lws);
 
     #if PRINT_DUP_FLAGS
     printf("After filter:   ");
@@ -96,11 +93,9 @@ void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, in
     printf("\n");
     #endif
 
-    err = cudaMemcpy(d_contours_x, d_contours_x_out, sizes->contours_linear_size * sizeof(int), cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(d_contours_y, d_contours_y_out, sizes->contours_linear_size * sizeof(int), cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(d_contours, d_contours_out, sizes->contours_linear_size * sizeof(point), cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
-    err = cudaFree(d_contours_x_out); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaFree(d_contours_y_out); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaFree(d_contours_out); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_flags); cuda_err_check(err, __FILE__, __LINE__);
 
     #if PROFILE_DUP

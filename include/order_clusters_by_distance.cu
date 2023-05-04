@@ -2,6 +2,7 @@
 #define CLUSTER_MIN_DISTANCE_H
 
 #define PROFILE_ORDER_CLUSTER_BY_DISTANCE 0
+#define PRINT_ORDER_CLUSTER_BY_DISTANCE 0
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -129,9 +130,9 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
-    int * h_distance_matrix = (int *)malloc(sizeof(int) * sizes->number_of_contours * sizes->number_of_contours);
+    uint32_t * h_distance_matrix = (uint32_t *)malloc(sizeof(uint32_t) * sizes->number_of_contours * sizes->number_of_contours);
 
-    err = cudaMemcpy(h_distance_matrix, d_distance_matrix, sizeof(int) * sizes->number_of_contours * sizes->number_of_contours, cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(h_distance_matrix, d_distance_matrix, sizeof(uint32_t) * sizes->number_of_contours * sizes->number_of_contours, cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
 
     int * h_new_contours_relocation = (int *)malloc(sizeof(int) * sizes->number_of_contours);
 
@@ -144,13 +145,13 @@ void order_cluster_by_distance_wrapper(int * d_contours_x, int * d_contours_y, i
     int cnt = 1;
     h_visited[from] = 1;
     while (true){
-        int * start_row = h_distance_matrix + (from * sizes->number_of_contours);
-        int min = INT_MAX;
-        int to = -1;
+        uint32_t * start_row = h_distance_matrix + (from * sizes->number_of_contours);
+        uint32_t min = INT_MAX;
+        uint32_t to = (uint32_t)-1;
         for (int i = 0; i < sizes->number_of_contours; i++){
             if (h_visited[i]) continue;
-            if (start_row[i] == -1) continue;
-            if (start_row[i] < min){
+            if (start_row[i] == 294967295) continue;
+            if (start_row[i] < min || to == (uint32_t)-1){
                 min = start_row[i];
                 to = i;
             }

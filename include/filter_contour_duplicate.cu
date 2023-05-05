@@ -28,10 +28,11 @@ __global__ void compute_duplicates_flags (int4 * d_contours_x, int4 * d_contours
     
     if (gi >= nels || point1 == point2) return;
 
-    d_flags[point2].x = d_flags[point2].x && !(d_contours_x[point1].x == d_contours_x[point2].x && d_contours_y[point1].x == d_contours_y[point2].x);
-    d_flags[point2].y = d_flags[point2].y && !(d_contours_x[point1].y == d_contours_x[point2].y && d_contours_y[point1].y == d_contours_y[point2].y);
-    d_flags[point2].z = d_flags[point2].z && !(d_contours_x[point1].z == d_contours_x[point2].z && d_contours_y[point1].z == d_contours_y[point2].z);
-    d_flags[point2].w = d_flags[point2].w && !(d_contours_x[point1].w == d_contours_x[point2].w && d_contours_y[point1].w == d_contours_y[point2].w);
+    d_flags[point2].x = d_flags[point2].x && !(d_contours_x[point1].x == d_contours_x[point2].x && d_contours_y[point1].x == d_contours_y[point2].x) && !(d_contours_x[point1].y == d_contours_x[point2].x && d_contours_y[point1].y == d_contours_y[point2].x) && !(d_contours_x[point1].z == d_contours_x[point2].x && d_contours_y[point1].z == d_contours_y[point2].x) && !(d_contours_x[point1].w == d_contours_x[point2].x && d_contours_y[point1].w == d_contours_y[point2].x);
+    d_flags[point2].y = d_flags[point2].y && !(d_contours_x[point1].x == d_contours_x[point2].y && d_contours_y[point1].x == d_contours_y[point2].y) && !(d_contours_x[point1].y == d_contours_x[point2].y && d_contours_y[point1].y == d_contours_y[point2].y) && !(d_contours_x[point1].z == d_contours_x[point2].y && d_contours_y[point1].z == d_contours_y[point2].y) && !(d_contours_x[point1].w == d_contours_x[point2].y && d_contours_y[point1].w == d_contours_y[point2].y);
+    d_flags[point2].z = d_flags[point2].z && !(d_contours_x[point1].x == d_contours_x[point2].z && d_contours_y[point1].x == d_contours_y[point2].z) && !(d_contours_x[point1].y == d_contours_x[point2].z && d_contours_y[point1].y == d_contours_y[point2].z) && !(d_contours_x[point1].z == d_contours_x[point2].z && d_contours_y[point1].z == d_contours_y[point2].z) && !(d_contours_x[point1].w == d_contours_x[point2].z && d_contours_y[point1].w == d_contours_y[point2].z);
+    d_flags[point2].w = d_flags[point2].w && !(d_contours_x[point1].x == d_contours_x[point2].w && d_contours_y[point1].x == d_contours_y[point2].w) && !(d_contours_x[point1].y == d_contours_x[point2].w && d_contours_y[point1].y == d_contours_y[point2].w) && !(d_contours_x[point1].z == d_contours_x[point2].w && d_contours_y[point1].z == d_contours_y[point2].w) && !(d_contours_x[point1].w == d_contours_x[point2].w && d_contours_y[point1].w == d_contours_y[point2].w);
+
     
 }
 
@@ -47,6 +48,7 @@ void filter_contour_duplicate_wrapper(int * d_contours_x, int * d_contours_y, in
     #endif
     
     err = cudaMalloc((void **)&d_flags, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    // remember 1 means keep, 0 means discard
     cuMemsetD32((CUdeviceptr)d_flags, 1, sizes->contours_linear_size);
 
     uint64_t nquarts = round_div_up_64(sizes->contours_linear_size, 4);

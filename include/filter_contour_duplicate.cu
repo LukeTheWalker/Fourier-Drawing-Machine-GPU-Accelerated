@@ -120,6 +120,51 @@ void filter_contour_duplicate_wrapper(point * d_contours, int * h_contours_sizes
 }
 
 #if 0
+
+void test_duplicate (){
+    // generate array of 100000000 random point numbers from 0 to 10
+    
+    // choose random number from 100 to 10000
+    cout << "running test_duplicate\n";
+
+    int n = rand() % 10000 + 100;
+
+    Sizes * sizes = new Sizes;
+    sizes->contours_linear_size = 70000;
+    sizes->number_of_contours = n;
+
+    point *points = new point[sizes->contours_linear_size];
+    for (int i = 0; i < sizes->contours_linear_size; i++){
+        points[i].x = rand() % 10;
+        points[i].y = rand() % 10;
+    }
+
+    point * d_points;
+
+    cudaMalloc((void **)&d_points, sizes->contours_linear_size * sizeof(point));
+    cudaMemcpy(d_points, points, sizes->contours_linear_size * sizeof(point), cudaMemcpyHostToDevice);
+
+    cout << "transferred points to device\n";
+
+    int * h_contours_sizes = new int[sizes->number_of_contours];
+
+    for (int i = 0; i < sizes->number_of_contours - 1; i++) {
+        h_contours_sizes[i] = 1;
+    }
+    h_contours_sizes[sizes->number_of_contours - 1] = sizes->contours_linear_size - sizes->number_of_contours;
+
+    cout << "Calling filter_contour_duplicate_wrapper\n";
+
+    filter_contour_duplicate_wrapper(d_points, h_contours_sizes, sizes, 256, 256);
+
+    print_array_dev(d_points, sizes->contours_linear_size);
+
+    cudaFree(d_points);
+    delete[] points;
+    delete[] h_contours_sizes;
+    delete sizes;
+}
+
 void test_duplicate () {
     int h_contours_x [] = {4,5,1,2,4,3,1};
     int h_contours_y [] = {4,5,1,2,4,3,1};

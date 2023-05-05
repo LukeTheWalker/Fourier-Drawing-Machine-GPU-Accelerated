@@ -19,16 +19,29 @@
 #include "streamCompaction.cu"
 #include "merge_contours.cu"
 
-__global__ void compute_duplicates_flags (point * d_contours, int * d_flags, uint64_t contours_linear_size){
+__global__ void compute_duplicates_flags (point * d_contours, int4 * d_flags, uint64_t nquarts_linear_size){
     uint64_t gi = threadIdx.x + blockIdx.x * blockDim.x;
-    uint64_t nels = ((uint64_t)contours_linear_size * ((uint64_t)contours_linear_size - 1)) / 2;
+    uint64_t n_comparison = ((uint64_t)nquarts_linear_size * ((uint64_t)nquarts_linear_size - 1)) / 2;
 
-    uint64_t point1 = (uint64_t)contours_linear_size - 2 - floor(sqrt((double)-8*gi + 4*(uint64_t)contours_linear_size*((uint64_t)contours_linear_size-1)-7)/2.0 - 0.5);
-    uint64_t point2 = gi + point1 + 1 - (uint64_t)contours_linear_size*((uint64_t)contours_linear_size-1)/2 + ((uint64_t)contours_linear_size-point1)*(((uint64_t)contours_linear_size-point1)-1)/2;
+    uint64_t quarts_1 = (uint64_t)nquarts_linear_size - 2 - floor(sqrt((double)-8*gi + 4*(uint64_t)nquarts_linear_size*((uint64_t)nquarts_linear_size-1)-7)/2.0 - 0.5);
+    uint64_t quarts_2 = gi + quarts_1 + 1 - (uint64_t)nquarts_linear_size*((uint64_t)nquarts_linear_size-1)/2 + ((uint64_t)nquarts_linear_size-quarts_1)*(((uint64_t)nquarts_linear_size-quarts_1)-1)/2;
     
-    if (gi >= nels || point1 == point2) return;
+    if (gi >= n_comparison || quarts_1 == quarts_2) return;
 
-    d_flags[point2] = d_flags[point2] && !(d_contours[point1].x == d_contours[point2].x && d_contours[point1].y == d_contours[point2].y);
+    point point_before_1 = d_contours[quarts_1];
+    point point_before_2 = d_contours[quarts_1 + 1];
+    point point_before_3 = d_contours[quarts_1 + 2];
+    point point_before_4 = d_contours[quarts_1 + 3];
+
+    point point_after_1 = d_contours[quarts_2];
+    point point_after_2 = d_contours[quarts_2 + 1];
+    point point_after_3 = d_contours[quarts_2 + 2];
+    point point_after_4 = d_contours[quarts_2 + 3];
+
+    d_flags[quarts_2].x = d_flags[quarts_2].x && !(point_before_1.x == point_after_1.x && point_before_1.y == point_after_1.y) && !(point_before_2.x == point_after_1.x && point_before_2.y == point_after_1.y) && !(point_before_3.x == point_after_1.x && point_before_3.y == point_after_1.y) && !(point_before_4.x == point_after_1.x && point_before_4.y == point_after_1.y);
+    d_flags[quarts_2].y = d_flags[quarts_2].y && !(point_before_1.x == point_after_2.x && point_before_1.y == point_after_2.y) && !(point_before_2.x == point_after_2.x && point_before_2.y == point_after_2.y) && !(point_before_3.x == point_after_2.x && point_before_3.y == point_after_2.y) && !(point_before_4.x == point_after_2.x && point_before_4.y == point_after_2.y);
+    d_flags[quarts_2].z = d_flags[quarts_2].z && !(point_before_1.x == point_after_3.x && point_before_1.y == point_after_3.y) && !(point_before_2.x == point_after_3.x && point_before_2.y == point_after_3.y) && !(point_before_3.x == point_after_3.x && point_before_3.y == point_after_3.y) && !(point_before_4.x == point_after_3.x && point_before_4.y == point_after_3.y);
+    d_flags[quarts_2].w = d_flags[quarts_2].w && !(point_before_1.x == point_after_4.x && point_before_1.y == point_after_4.y) && !(point_before_2.x == point_after_4.x && point_before_2.y == point_after_4.y) && !(point_before_3.x == point_after_4.x && point_before_3.y == point_after_4.y) && !(point_before_4.x == point_after_4.x && point_before_4.y == point_after_4.y);
     
 }
 
@@ -46,8 +59,8 @@ void filter_contour_duplicate_wrapper(point * d_contours, int * h_contours_sizes
     err = cudaMalloc((void **)&d_flags, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     cuMemsetD32((CUdeviceptr)d_flags, 1, sizes->contours_linear_size);
 
-    // uint64_t nquarts = round_div_up_64(sizes->contours_linear_size, 4);
-    uint64_t nquarts = sizes->contours_linear_size;
+    uint64_t nquarts = round_div_up_64(sizes->contours_linear_size, 4);
+    // uint64_t nquarts = sizes->contours_linear_size;
     uint64_t nels = ((uint64_t)nquarts * ((uint64_t)nquarts - 1)) / 2;
     uint64_t gws = round_div_up_64(nels, 1024);
 
@@ -55,7 +68,7 @@ void filter_contour_duplicate_wrapper(point * d_contours, int * h_contours_sizes
     cudaEventRecord(start);
     #endif
 
-    compute_duplicates_flags<<<gws, 1024>>>(d_contours, d_flags, nquarts);
+    compute_duplicates_flags<<<gws, 1024>>>(d_contours, (int4 *)d_flags, nquarts);
 
     #if PROFILE_DUP
     cudaEventRecord(stop);

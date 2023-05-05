@@ -483,7 +483,10 @@ Thresholds get_treshold(string file_name, Mat & src)
         // load all excluded points
         int x, y;
         while (file >> x >> y){
-            tresholds.excluded_points.insert(Point(x, y));
+            tresholds.excluded_points.insert(Point(x * 2, y * 2));
+            tresholds.excluded_points.insert(Point(x * 2+ 1, y * 2));
+            tresholds.excluded_points.insert(Point(x * 2, y * 2 + 1));
+            tresholds.excluded_points.insert(Point(x * 2 + 1, y * 2 + 1));
         }
         file.close();
     } else {

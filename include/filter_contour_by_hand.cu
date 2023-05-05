@@ -20,14 +20,14 @@
 using namespace std;
 
 struct check_array_membership {
-    __device__ int4 operator()(int gi, point * dat_arr, point * arr, int n_quart_array) {
+    __device__ int4 operator()(int gi, point * dat_arr, point * arr, int array_size) {
         int4 res = {0, 0, 0, 0};
         point dat_1 = dat_arr[gi * 4];
         point dat_2 = dat_arr[gi * 4 + 1];
         point dat_3 = dat_arr[gi * 4 + 2];
         point dat_4 = dat_arr[gi * 4 + 3];
 
-        for (int i = 0; i < n_quart_array; i++){
+        for (int i = 0; i < array_size; i++){
             point p = arr[i];
             res.x = res.x | (p.x == dat_1.x && p.y == dat_1.y);
             res.y = res.y | (p.x == dat_2.x && p.y == dat_2.y);
@@ -84,8 +84,7 @@ void filter_contour_by_hand_wrapper(point * d_contours_out, int * h_contours_siz
 
     err = cudaMemcpy(d_excluded_points, h_excluded_points, excluded_points_size * sizeof(point), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
-    int nquarts_flags = round_div_up(sizes->contours_linear_size, 2);
-    int nquarts_excluded_points = round_div_up(excluded_points_size, 2);
+    int nquarts_flags = round_div_up(sizes->contours_linear_size, 4);
 
     #if PROFILING_HAND
     cudaEvent_t start, stop;
@@ -94,7 +93,7 @@ void filter_contour_by_hand_wrapper(point * d_contours_out, int * h_contours_siz
     cudaEventRecord(start);
     #endif
 
-    compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, d_contours, d_excluded_points, nquarts_excluded_points);
+    compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, d_contours, d_excluded_points, excluded_points_size);
     
     #if PROFILING_HAND
     cudaEventRecord(stop);

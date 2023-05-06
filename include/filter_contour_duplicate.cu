@@ -28,15 +28,15 @@ __global__ void compute_duplicates_flags (point * d_contours, int4 * d_flags, ui
     
     if (gi >= n_comparison || quarts_1 == quarts_2) return;
 
-    point point_before_1 = d_contours[quarts_1];
-    point point_before_2 = d_contours[quarts_1 + 1];
-    point point_before_3 = d_contours[quarts_1 + 2];
-    point point_before_4 = d_contours[quarts_1 + 3];
+    point point_before_1 = d_contours[quarts_1 * 4];
+    point point_before_2 = d_contours[quarts_1 * 4 + 1];
+    point point_before_3 = d_contours[quarts_1 * 4 + 2];
+    point point_before_4 = d_contours[quarts_1 * 4 + 3];
 
-    point point_after_1 = d_contours[quarts_2];
-    point point_after_2 = d_contours[quarts_2 + 1];
-    point point_after_3 = d_contours[quarts_2 + 2];
-    point point_after_4 = d_contours[quarts_2 + 3];
+    point point_after_1 = d_contours[quarts_2 * 4];
+    point point_after_2 = d_contours[quarts_2 * 4 + 1];
+    point point_after_3 = d_contours[quarts_2 * 4 + 2];
+    point point_after_4 = d_contours[quarts_2 * 4 + 3];
 
     d_flags[quarts_2].x = d_flags[quarts_2].x && !(point_before_1.x == point_after_1.x && point_before_1.y == point_after_1.y) && !(point_before_2.x == point_after_1.x && point_before_2.y == point_after_1.y) && !(point_before_3.x == point_after_1.x && point_before_3.y == point_after_1.y) && !(point_before_4.x == point_after_1.x && point_before_4.y == point_after_1.y);
     d_flags[quarts_2].y = d_flags[quarts_2].y && !(point_before_1.x == point_after_2.x && point_before_1.y == point_after_2.y) && !(point_before_2.x == point_after_2.x && point_before_2.y == point_after_2.y) && !(point_before_3.x == point_after_2.x && point_before_3.y == point_after_2.y) && !(point_before_4.x == point_after_2.x && point_before_4.y == point_after_2.y);
@@ -59,7 +59,7 @@ void filter_contour_duplicate_wrapper(point * d_contours, int * h_contours_sizes
     err = cudaMalloc((void **)&d_flags, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
     cuMemsetD32((CUdeviceptr)d_flags, 1, sizes->contours_linear_size);
 
-    uint64_t nquarts = round_div_up_64(sizes->contours_linear_size, 4);
+    uint64_t nquarts = round_div_up_64((uint64_t)sizes->contours_linear_size, 4);
     // uint64_t nquarts = sizes->contours_linear_size;
     uint64_t nels = ((uint64_t)nquarts * ((uint64_t)nquarts - 1)) / 2;
     uint64_t gws = round_div_up_64(nels, 1024);

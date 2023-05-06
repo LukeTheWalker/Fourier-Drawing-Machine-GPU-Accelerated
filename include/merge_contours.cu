@@ -48,40 +48,48 @@ __global__ void reverse_lookup_contours (int * d_scanned_sizes, int * d_reverse_
     }
 }
 
-__global__ void compute_closeness_matrix (point * d_contours, int * d_reverse_lookup, char * d_closeness_matrix, int contours_linear_size, int number_of_contours, int merge_distance){
+__global__ void compute_closeness_matrix (point * d_contours, int * d_reverse_lookup, char * d_closeness_matrix, int nquarts_contours_linear_size, int number_of_contours, int merge_distance){
     uint64_t gi = threadIdx.x + blockIdx.x * blockDim.x;
-    uint64_t nels = ((uint64_t)contours_linear_size * ((uint64_t)contours_linear_size - 1)) / 2;
+    uint64_t n_comparison = ((uint64_t)nquarts_contours_linear_size * ((uint64_t)nquarts_contours_linear_size - 1)) / 2;
 
-    uint64_t point1 = (uint64_t)contours_linear_size - 2 - floor(sqrt((double)-8*gi + 4*(uint64_t)contours_linear_size*((uint64_t)contours_linear_size-1)-7)/2.0 - 0.5);
-    uint64_t point2 = gi + point1 + 1 - (uint64_t)contours_linear_size*((uint64_t)contours_linear_size-1)/2 + ((uint64_t)contours_linear_size-point1)*(((uint64_t)contours_linear_size-point1)-1)/2;
+    uint64_t quarts_1 = (uint64_t)nquarts_contours_linear_size - 2 - floor(sqrt((double)-8*gi + 4*(uint64_t)nquarts_contours_linear_size*((uint64_t)nquarts_contours_linear_size-1)-7)/2.0 - 0.5);
+    uint64_t quarts_2 = gi + quarts_1 + 1 - (uint64_t)nquarts_contours_linear_size*((uint64_t)nquarts_contours_linear_size-1)/2 + ((uint64_t)nquarts_contours_linear_size-quarts_1)*(((uint64_t)nquarts_contours_linear_size-quarts_1)-1)/2;
 
     // printf("Point1: %lu, Point2: %lu\n", point1, point2);
 
-    if (gi >= nels) return;
+    if (gi >= n_comparison || quarts_1 == quarts_2) return;
 
-    if (gi >= nels || point1 == point2) return;
+    point before [4];
+    int contour_before [4];
+    for (int i = 0; i < 4; i++) {before[i] = d_contours[quarts_1 * 4 + i]; contour_before[i] = d_reverse_lookup[quarts_1 * 4 + i];}
+
+    point after [4];
+    int contour_after [4];
+    for (int i = 0; i < 4; i++) {after[i] = d_contours[quarts_2 * 4 + i]; contour_after[i] = d_reverse_lookup[quarts_2 * 4 + i];}
+
+    for (int i = 0; i < 4; i++){
+        for (int j = 0; j < 4; j++) {
+            if (contour_before[i] == contour_after[j] || d_closeness_matrix[contour_after[j] * number_of_contours + contour_before[i]]) continue;
+            int distance = (before[i].x - after[j].x) * (before[i].x - after[j].x) + (before[i].y - after[j].y) * (before[i].y - after[j].y);
+            if (distance <= merge_distance * merge_distance){
+                d_closeness_matrix[contour_before[i] * number_of_contours + contour_after[j]] = 1;
+            }
+        }
+    }
     
-    int contour1 = d_reverse_lookup[point1];
-    int contour2 = d_reverse_lookup[point2];
-
-    if (contour1 == contour2 || d_closeness_matrix[contour1 * number_of_contours + contour2]) return;
-
-
-    point p1 = d_contours[point1];
-    point p2 = d_contours[point2];
-
+    // if (contour1 == contour2 || d_closeness_matrix[contour1 * number_of_contours + contour2]) return;
 
     // int distance = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
-    int distance = (p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y);
+    // int distance = (p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y);
 
-    if (distance < merge_distance * merge_distance){
-        #if PRINT_MERGE
-        printf("Contour %d and %d are close thanks to points %d and %d having distance %d vs %d merge_distance\n", contour1, contour2, point1, point2, distance, merge_distance*merge_distance);
-        #endif
-        // printf("Accessing matrix index: %d", contour1 * number_of_contours + contour2);
-        d_closeness_matrix[contour1 * number_of_contours + contour2] = 1;
-        // d_closeness_matrix[contour2 * number_of_contours + contour1] = 1;
-    }
+    // if (distance < merge_distance * merge_distance){
+    //     #if PRINT_MERGE
+    //     printf("Contour %d and %d are close thanks to points %d and %d having distance %d vs %d merge_distance\n", contour1, contour2, point1, point2, distance, merge_distance*merge_distance);
+    //     #endif
+    //     // printf("Accessing matrix index: %d", contour1 * number_of_contours + contour2);
+    //     d_closeness_matrix[contour1 * number_of_contours + contour2] = 1;
+    //     // d_closeness_matrix[contour2 * number_of_contours + contour1] = 1;
+    // }
 }
 
 __global__ void reallign_contours (point * d_contours_in, point * d_contours_out, int* d_reverse_lookup, int * d_scanned_sizes, int * d_starts_at, int * d_cumulative_positions, int * d_merge_to,  int contours_linear_size){
@@ -184,22 +192,24 @@ void merge_contours_wrapper(point * d_contours, int * h_contours_size, int merge
     err = cudaMalloc((void **)&d_closeness_matrix, sizeof(char) * sizes->number_of_contours * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemset(d_closeness_matrix, 0, sizeof(char) * sizes->number_of_contours * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__); 
 
-    uint64_t nels = ((uint64_t)sizes->contours_linear_size * ((uint64_t)sizes->contours_linear_size - 1)) / 2;
+    uint64_t nquarts = round_div_up_64((uint64_t)sizes->contours_linear_size, 4);
+    uint64_t nels = (nquarts * (nquarts - 1)) / 2;
     uint64_t gws = round_div_up_64(nels, 1024);
 
     #if PROFILING_MERGE
     cudaEventRecord(start);
     #endif
 
-    compute_closeness_matrix<<<gws, 1024>>>(d_contours, d_reverse_lookup, d_closeness_matrix, sizes->contours_linear_size, sizes->number_of_contours, merge_distance);
+    compute_closeness_matrix<<<gws, 1024>>>(d_contours, d_reverse_lookup, d_closeness_matrix, nquarts, sizes->number_of_contours, merge_distance);
 
     #if PROFILING_MERGE
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&time, start, stop);
+    uint64_t n_comparisons = (float)sizes->contours_linear_size * (float)(sizes->contours_linear_size - 1) / 2;
     printf("Compute closeness matrix merge time: %f\n", time);
     printf("GE/s: %f\n", (float)nels / time / 1e06);
-    printf("GB/s = %f\n", (8 * (float)nels * sizeof(int)) / time / 1.e6);
+    printf("GB/s = %f\n", (8 * n_comparisons * sizeof(int)) / time / 1.e6);
     #endif
 
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);

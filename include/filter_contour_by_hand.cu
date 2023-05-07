@@ -25,10 +25,12 @@ struct check_array_membership {
         int4 dat_x = dat_x_arr[gi];
         int4 dat_y = dat_y_arr[gi];
         for (int i = 0; i < n_quart_array; i++){
-            res.x = res.x || (dat_x.x == arr_x[i].x && dat_y.x == arr_y[i].x) || (dat_x.x == arr_x[i].y && dat_y.x == arr_y[i].y) || (dat_x.x == arr_x[i].z && dat_y.x == arr_y[i].z) || (dat_x.x == arr_x[i].w && dat_y.x == arr_y[i].w);
-            res.y = res.y || (dat_x.y == arr_x[i].x && dat_y.y == arr_y[i].x) || (dat_x.y == arr_x[i].y && dat_y.y == arr_y[i].y) || (dat_x.y == arr_x[i].z && dat_y.y == arr_y[i].z) || (dat_x.y == arr_x[i].w && dat_y.y == arr_y[i].w);
-            res.z = res.z || (dat_x.z == arr_x[i].x && dat_y.z == arr_y[i].x) || (dat_x.z == arr_x[i].y && dat_y.z == arr_y[i].y) || (dat_x.z == arr_x[i].z && dat_y.z == arr_y[i].z) || (dat_x.z == arr_x[i].w && dat_y.z == arr_y[i].w);
-            res.w = res.w || (dat_x.w == arr_x[i].x && dat_y.w == arr_y[i].x) || (dat_x.w == arr_x[i].y && dat_y.w == arr_y[i].y) || (dat_x.w == arr_x[i].z && dat_y.w == arr_y[i].z) || (dat_x.w == arr_x[i].w && dat_y.w == arr_y[i].w);
+            int4 arr_x_i = arr_x[i];
+            int4 arr_y_i = arr_y[i];
+            res.x = res.x || (dat_x.x == arr_x_i.x && dat_y.x == arr_y_i.x) || (dat_x.x == arr_x_i.y && dat_y.x == arr_y_i.y) || (dat_x.x == arr_x_i.z && dat_y.x == arr_y_i.z) || (dat_x.x == arr_x_i.w && dat_y.x == arr_y_i.w);
+            res.y = res.y || (dat_x.y == arr_x_i.x && dat_y.y == arr_y_i.x) || (dat_x.y == arr_x_i.y && dat_y.y == arr_y_i.y) || (dat_x.y == arr_x_i.z && dat_y.y == arr_y_i.z) || (dat_x.y == arr_x_i.w && dat_y.y == arr_y_i.w);
+            res.z = res.z || (dat_x.z == arr_x_i.x && dat_y.z == arr_y_i.x) || (dat_x.z == arr_x_i.y && dat_y.z == arr_y_i.y) || (dat_x.z == arr_x_i.z && dat_y.z == arr_y_i.z) || (dat_x.z == arr_x_i.w && dat_y.z == arr_y_i.w);
+            res.w = res.w || (dat_x.w == arr_x_i.x && dat_y.w == arr_y_i.x) || (dat_x.w == arr_x_i.y && dat_y.w == arr_y_i.y) || (dat_x.w == arr_x_i.z && dat_y.w == arr_y_i.z) || (dat_x.w == arr_x_i.w && dat_y.w == arr_y_i.w);
         }
         return {!res.x, !res.y, !res.z, !res.w};
     }
@@ -106,7 +108,7 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("compute_flags hand time: %f\n", milliseconds);
     printf("GE/s: %f\n", (float)sizes->contours_linear_size / milliseconds / 1e6);
-    printf("GB/s: %f\n", ((float)sizes->contours_linear_size * sizeof(int) * 3 + (float)sizes->contours_linear_size * excluded_points_size * sizeof(int) / 4)/ milliseconds / 1e6);
+    printf("GB/s: %f\n", ((float)nquarts_flags * sizeof(int4) * 3 + (float)nquarts_flags * (float)nquarts_excluded_points * 2 * sizeof(int4))/ milliseconds / 1e6);
     #endif
 
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
@@ -189,7 +191,6 @@ int test() {
     h_contours_sizes = (int*)malloc(sizes->number_of_contours * sizeof(int));
 
     for (int i = 0; i < sizes->number_of_contours; i++) h_contours_sizes[i] = contours[i].size();
-
 
     filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes);
 

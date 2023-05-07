@@ -45,14 +45,14 @@ void filter_contour (int * d_contours_x, int * d_contours_y, int * h_contours_si
     #endif
 
     scan_sliding_window<<<ngroups, lws, lws*sizeof(int)>>>((int4*)d_flags, (int4*)d_positions, d_tails, round_div_up(sizes->contours_linear_size, 4), 32);
-    #if PROFILING_CONTOUR
-    err = cudaEventRecord(stop, 0); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaEventSynchronize(stop); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaEventElapsedTime(&time, start, stop); cuda_err_check(err, __FILE__, __LINE__);
-    printf("scan_sliding_window[partial] time: %f\n", time);
-    printf("GE/s = %f\n", (float)sizes->contours_linear_size / time / 1e6);
-    printf("GB/s = %f\n", (2 * (float)sizes->contours_linear_size * sizeof(int) + (ngroups > 1 ? (float)ngroups * sizeof(int) : 0)) / time / 1.e6);
-    #endif
+    // #if PROFILING_CONTOUR
+    // err = cudaEventRecord(stop, 0); cuda_err_check(err, __FILE__, __LINE__);
+    // err = cudaEventSynchronize(stop); cuda_err_check(err, __FILE__, __LINE__);
+    // err = cudaEventElapsedTime(&time, start, stop); cuda_err_check(err, __FILE__, __LINE__);
+    // printf("scan_sliding_window[partial] time: %f\n", time);
+    // printf("GE/s = %f\n", (float)sizes->contours_linear_size / time / 1e6);
+    // printf("GB/s = %f\n", (2 * (float)sizes->contours_linear_size * sizeof(int) + (ngroups > 1 ? (float)ngroups * sizeof(int) : 0)) / time / 1.e6);
+    // #endif
     
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
@@ -62,23 +62,21 @@ void filter_contour (int * d_contours_x, int * d_contours_y, int * h_contours_si
     print_array_dev(d_positions, sizes->contours_linear_size);
     printf("\n");
     #endif
-
-
     
     if (ngroups > 1){
-        #if PROFILING_CONTOUR
-        err = cudaEventRecord(start, 0); cuda_err_check(err, __FILE__, __LINE__);
-        #endif
+        // #if PROFILING_CONTOUR
+        // err = cudaEventRecord(start, 0); cuda_err_check(err, __FILE__, __LINE__);
+        // #endif
 
         scan_sliding_window<<<1, lws, lws*sizeof(int)>>>((int4*)d_tails, (int4*)d_tails, NULL, round_div_up(ntails, 4), 32);
-        #if PROFILING_CONTOUR
-        err = cudaEventRecord(stop, 0); cuda_err_check(err, __FILE__, __LINE__);
-        err = cudaEventSynchronize(stop); cuda_err_check(err, __FILE__, __LINE__);
-        err = cudaEventElapsedTime(&time, start, stop); cuda_err_check(err, __FILE__, __LINE__);
-        printf("scan_sliding_window time: %f\n", time);
-        printf("GE/s = %f\n", (float)ntails / time / 1e6);
-        printf("GB/s = %f\n", (float)ntails * sizeof(int) / time / 1.e6);
-        #endif
+        // #if PROFILING_CONTOUR
+        // err = cudaEventRecord(stop, 0); cuda_err_check(err, __FILE__, __LINE__);
+        // err = cudaEventSynchronize(stop); cuda_err_check(err, __FILE__, __LINE__);
+        // err = cudaEventElapsedTime(&time, start, stop); cuda_err_check(err, __FILE__, __LINE__);
+        // printf("scan_sliding_window time: %f\n", time);
+        // printf("GE/s = %f\n", (float)ntails / time / 1e6);
+        // printf("GB/s = %f\n", (float)ntails * sizeof(int) / time / 1.e6);
+        // #endif
 
         err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     }
@@ -90,9 +88,9 @@ void filter_contour (int * d_contours_x, int * d_contours_y, int * h_contours_si
     #endif
 
     if (ngroups > 1){
-        #if PROFILING_CONTOUR
-        err = cudaEventRecord(start, 0); cuda_err_check(err, __FILE__, __LINE__);
-        #endif
+        // #if PROFILING_CONTOUR
+        // err = cudaEventRecord(start, 0); cuda_err_check(err, __FILE__, __LINE__);
+        // #endif
 
         scan_fixup<<<ngroups, lws>>>((int4*)d_positions, d_tails, round_div_up(sizes->contours_linear_size, 4), 32);
 
@@ -100,9 +98,9 @@ void filter_contour (int * d_contours_x, int * d_contours_y, int * h_contours_si
         err = cudaEventRecord(stop, 0); cuda_err_check(err, __FILE__, __LINE__);
         err = cudaEventSynchronize(stop); cuda_err_check(err, __FILE__, __LINE__);
         err = cudaEventElapsedTime(&time, start, stop); cuda_err_check(err, __FILE__, __LINE__);
-        printf("scan_fixup time: %f\n", time);
+        printf("scan time: %f\n", time);
         printf("GE/s = %f\n", (float)sizes->contours_linear_size / time / 1e6);
-        printf("GB/s = %f\n", (2*(float)(sizes->contours_linear_size - lws) + ngroups) * sizeof(int) / time / 1.e6);
+        // printf("GB/s = %f\n", (2*(float)(sizes->contours_linear_size - lws) + ngroups) * sizeof(int) / time / 1.e6);
         #endif
 
         err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);

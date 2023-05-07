@@ -2,7 +2,7 @@
 #define FILTER_CONTOUR_BY_HAND_WRAPPER_H
 
 #define PRINT_FLAGS 0
-#define PROFILING_HAND 1
+#define PROFILING_HAND 0
 
 #include <cuda_runtime.h>
 
@@ -99,10 +99,12 @@ void filter_contour_by_hand_wrapper(point * d_contours_out, int * h_contours_siz
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     float milliseconds = 0;
+    //                      for each el    write d_flag   read start functor    loop over excluded points
+    double tot = (uint64_t)nquarts_flags * (sizeof(int4) + 4 * sizeof(point) + (uint64_t)excluded_points_size * sizeof(point)); 
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("compute_flags hand time: %f\n", milliseconds);
     printf("GE/s: %f\n", (float)sizes->contours_linear_size / milliseconds / 1e6);
-    printf("GB/s: %f\n", ((float)sizes->contours_linear_size * sizeof(int) * 3 + (float)sizes->contours_linear_size * excluded_points_size * sizeof(point) / 4)/ milliseconds / 1e6);
+    printf("GB/s: %f\n", tot / milliseconds / 1e6);
     #endif
 
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);

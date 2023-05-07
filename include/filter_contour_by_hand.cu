@@ -106,7 +106,7 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("compute_flags hand time: %f\n", milliseconds);
     printf("GE/s: %f\n", (float)sizes->contours_linear_size / milliseconds / 1e6);
-    printf("GB/s: %f\n", ((float)sizes->contours_linear_size * sizeof(int) * 3 + (float)sizes->contours_linear_size * excluded_points_size * sizeof(int))/ milliseconds / 1e6);
+    printf("GB/s: %f\n", ((float)sizes->contours_linear_size * sizeof(int) * 3 + (float)sizes->contours_linear_size * excluded_points_size * sizeof(int) / 4)/ milliseconds / 1e6);
     #endif
 
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);

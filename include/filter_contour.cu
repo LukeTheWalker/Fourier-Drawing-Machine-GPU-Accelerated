@@ -160,6 +160,11 @@ void filter_contour (int * d_contours_x, int * d_contours_y, int * h_contours_si
     err = cudaFree(d_tails); cuda_err_check(err, __FILE__, __LINE__);
 
     err = cudaFreeHost(h_positions); cuda_err_check(err, __FILE__, __LINE__);
+
+    #if PROFILING_CONTOUR
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    #endif
 }
 
 #endif

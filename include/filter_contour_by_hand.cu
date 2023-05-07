@@ -3,6 +3,7 @@
 
 #define PRINT_FLAGS 0
 #define PROFILING_HAND 0
+#define MANUAL_COUNTER 0
 
 #include <cuda_runtime.h>
 
@@ -20,11 +21,18 @@
 using namespace std;
 
 struct check_array_membership {
+    #if not MANUAL_COUNTER
     __device__ int4 operator()(int gi, int4 * dat_x_arr, int4 * dat_y_arr, int4 * arr_x, int4 * arr_y, int n_quart_array) {
+    #else
+    __device__ int4 operator()(int gi, int4 * dat_x_arr, int4 * dat_y_arr, int4 * arr_x, int4 * arr_y, int n_quart_array, unsigned long long int * cnt) {
+    #endif
         int4 res = {0, 0, 0, 0};
         int4 dat_x = dat_x_arr[gi];
         int4 dat_y = dat_y_arr[gi];
         for (int i = 0; i < n_quart_array; i++){
+            #if MANUAL_COUNTER
+            atomicAdd(cnt, 1);
+            #endif
             int4 arr_x_i = arr_x[i];
             int4 arr_y_i = arr_y[i];
             res.x = res.x || (dat_x.x == arr_x_i.x && dat_y.x == arr_y_i.x) || (dat_x.x == arr_x_i.y && dat_y.x == arr_y_i.y) || (dat_x.x == arr_x_i.z && dat_y.x == arr_y_i.z) || (dat_x.x == arr_x_i.w && dat_y.x == arr_y_i.w);
@@ -92,6 +100,12 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
     int nquarts_flags = round_div_up(sizes->contours_linear_size, 4);
     int nquarts_excluded_points = round_div_up(excluded_points_size, 4);
 
+    #if MANUAL_COUNTER
+    unsigned long long int * d_cnt;
+    err = cudaMalloc((void **)&d_cnt, sizeof(unsigned long long int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemset(d_cnt, 0, sizeof(unsigned long long int)); cuda_err_check(err, __FILE__, __LINE__);
+    #endif
+
     #if PROFILING_HAND
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -100,15 +114,22 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
     #endif
 
     compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, (int4*)d_contours_x, (int4*)d_contours_y, (int4*)d_excluded_points_x, (int4*)d_excluded_points_y, nquarts_excluded_points);
-    
+
     #if PROFILING_HAND
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
+    #if MANUAL_COUNTER
+    unsigned long long int cnt;
+    err = cudaMemcpy(&cnt, d_cnt, sizeof(unsigned long long int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
+    cout << "cnt: " << cnt << " nquarts_flags: " << nquarts_flags  << " nquarts_excluded_points: " << nquarts_excluded_points << " moltiplication: " << (uint64_t)nquarts_flags * (uint64_t)nquarts_excluded_points << endl;
+    #endif
     float milliseconds = 0;
+    double wrapper_time = (float)sizes->contours_linear_size * sizeof(int) * 2;
+    double nested_loop_time = (uint64_t)nquarts_flags * (uint64_t)excluded_points_size * (uint64_t)2 * (uint64_t)sizeof(int);
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("compute_flags hand time: %f\n", milliseconds);
     printf("GE/s: %f\n", (float)sizes->contours_linear_size / milliseconds / 1e6);
-    printf("GB/s: %f\n", ((float)nquarts_flags * sizeof(int4) * 3 + (float)nquarts_flags * (float)nquarts_excluded_points * 2 * sizeof(int4))/ milliseconds / 1e6);
+    printf("GB/s: %f\n", (wrapper_time + nested_loop_time) / milliseconds / 1e6);
     #endif
 
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);

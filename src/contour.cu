@@ -504,6 +504,7 @@ Thresholds get_treshold(string file_name, Mat & src)
                 file << point.x << " " << point.y << endl;
             }
             file.close();
+            exit(EXIT_SUCCESS);
         }
     }
     return tresholds;

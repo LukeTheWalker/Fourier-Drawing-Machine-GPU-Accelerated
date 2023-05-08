@@ -125,7 +125,7 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
     #endif
     float milliseconds = 0;
     double wrapper_time = (float)sizes->contours_linear_size * sizeof(int) * 2;
-    double nested_loop_time = (uint64_t)nquarts_flags * (uint64_t)excluded_points_size * (uint64_t)2 * (uint64_t)sizeof(int);
+    double nested_loop_time = (uint64_t)nquarts_flags * (uint64_t)nquarts_excluded_points * 2 * sizeof(int4) / 8;
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("compute_flags hand time: %f\n", milliseconds);
     printf("GE/s: %f\n", (float)sizes->contours_linear_size / milliseconds / 1e6);

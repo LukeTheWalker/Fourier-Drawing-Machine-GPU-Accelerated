@@ -20,21 +20,19 @@
 using namespace std;
 
 struct check_array_membership {
-    __device__ int4 operator()(int gi, point * dat_arr, point * arr, int array_size) {
-        int4 res = {0, 0, 0, 0};
-        point dat_1 = dat_arr[gi * 4];
-        point dat_2 = dat_arr[gi * 4 + 1];
-        point dat_3 = dat_arr[gi * 4 + 2];
-        point dat_4 = dat_arr[gi * 4 + 3];
+    __device__ int4 operator()(int gi, point2 * dat_arr, point2 * arr, int array_size) {
+        int4 res = {1, 1, 1, 1};
+        point2 dat_12 = dat_arr[gi * 2];
+        point2 dat_34 = dat_arr[gi * 2 + 1];
 
-        for (int i = 0; i < array_size; i++){
-            point p = arr[i];
-            res.x = res.x | (p.x == dat_1.x && p.y == dat_1.y);
-            res.y = res.y | (p.x == dat_2.x && p.y == dat_2.y);
-            res.z = res.z | (p.x == dat_3.x && p.y == dat_3.y);
-            res.w = res.w | (p.x == dat_4.x && p.y == dat_4.y);
+        for (int i = 0; i < round_div_up_dev(array_size, 2); i++){
+            point2 p = arr[i];
+            res.x = res.x && ((p.x ^ dat_12.x) | (p.y ^ dat_12.y)) && ((p.z ^ dat_12.x) | (p.w ^ dat_12.y));
+            res.y = res.y && ((p.x ^ dat_12.z) | (p.y ^ dat_12.w)) && ((p.z ^ dat_12.z) | (p.w ^ dat_12.w));
+            res.z = res.z && ((p.x ^ dat_34.x) | (p.y ^ dat_34.y)) && ((p.z ^ dat_34.x) | (p.w ^ dat_34.y));
+            res.w = res.w && ((p.x ^ dat_34.z) | (p.y ^ dat_34.w)) && ((p.z ^ dat_34.z) | (p.w ^ dat_34.w));
         }
-        return {!res.x, !res.y, !res.z, !res.w};
+        return {res.x, res.y, res.z, res.w};
     }
 };
 
@@ -93,16 +91,17 @@ void filter_contour_by_hand_wrapper(point * d_contours_out, int * h_contours_siz
     cudaEventRecord(start);
     #endif
 
-    compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, d_contours, d_excluded_points, excluded_points_size);
+    compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, (point2 *)d_contours, (point2*)d_excluded_points, excluded_points_size);
     
     #if PROFILING_HAND
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     float milliseconds = 0;
+    uint64_t byte_accesses = nquarts_flags * (sizeof(int4) + 2 * sizeof(point2) + excluded_points_size / 8 * sizeof(point));
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("compute_flags hand time: %f\n", milliseconds);
     printf("GE/s: %f\n", (float)sizes->contours_linear_size / milliseconds / 1e6);
-    printf("GB/s: %f\n", ((float)sizes->contours_linear_size * (sizeof(int) + sizeof(point)) + (float)sizes->contours_linear_size / 4 * excluded_points_size * sizeof(point))/ milliseconds / 1e6);
+    printf("GB/s: %f\n", (double)byte_accesses / milliseconds / 1e6);
     #endif
 
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);

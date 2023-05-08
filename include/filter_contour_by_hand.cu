@@ -97,7 +97,7 @@ void filter_contour_by_hand_wrapper(point * d_contours_out, int * h_contours_siz
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     float milliseconds = 0;
-    uint64_t byte_accesses = nquarts_flags * (sizeof(int4) + 2 * sizeof(point2) + excluded_points_size / 8 * sizeof(point));
+    uint64_t byte_accesses = nquarts_flags * (sizeof(int4) + 2 * sizeof(point2) + excluded_points_size /*/ 8*/ * sizeof(point));
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("compute_flags hand time: %f\n", milliseconds);
     printf("GE/s: %f\n", (float)sizes->contours_linear_size / milliseconds / 1e6);

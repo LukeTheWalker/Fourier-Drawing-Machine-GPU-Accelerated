@@ -70,10 +70,11 @@ __global__ void compute_closeness_matrix (point * d_contours, int * d_reverse_lo
 
     for (int i = 0; i < KERNEL_SIZE_MERGE; i++){
         for (int j = 0; j < KERNEL_SIZE_MERGE; j++) {
-            if (contour_before[i] == contour_after[j] || contour_before[i] >= number_of_contours || contour_after[j] >= number_of_contours || d_closeness_matrix[contour_after[j] * number_of_contours + contour_before[i]]) continue;
-            int distance = (before[i].x - after[j].x) * (before[i].x - after[j].x) + (before[i].y - after[j].y) * (before[i].y - after[j].y);
-            if (distance <= merge_distance * merge_distance){
-                d_closeness_matrix[contour_before[i] * number_of_contours + contour_after[j]] = 1;
+            if (!(contour_before[i] == contour_after[j] || contour_before[i] >= number_of_contours || contour_after[j] >= number_of_contours || d_closeness_matrix[contour_after[j] * number_of_contours + contour_before[i]])){
+                int distance = (before[i].x - after[j].x) * (before[i].x - after[j].x) + (before[i].y - after[j].y) * (before[i].y - after[j].y);
+                if (distance <= merge_distance * merge_distance){
+                    d_closeness_matrix[contour_before[i] * number_of_contours + contour_after[j]] = 1;
+                }
             }
         }
     }

@@ -3,7 +3,7 @@
 
 #define PROFILE_ORDER_CLUSTER_BY_DISTANCE 0
 #define PRINT_ORDER_CLUSTER_BY_DISTANCE 0
-#define KERNEL_SIZE_ORDER 8
+#define KERNEL_SIZE_ORDER 32
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -40,11 +40,12 @@ __global__ void compute_distance_matrix(point * d_contours, int * d_reverse_look
 
      for (int i = 0; i < KERNEL_SIZE_ORDER; i++){
         for (int j = 0; j < KERNEL_SIZE_ORDER; j++) {
-            if (contour_before[i] == contour_after[j] || contour_before[i] >= number_of_contours || contour_after[j] >= number_of_contours) continue;
-            uint32_t distance = (before[i].x - after[j].x) * (before[i].x - after[j].x) + (before[i].y - after[j].y) * (before[i].y - after[j].y);
-            if ((int)d_distance_matrix[contour_before[i] * number_of_contours + contour_after[j]] == -1 || d_distance_matrix[contour_before[i] * number_of_contours + contour_after[j]] > distance){
-                d_distance_matrix[contour_before[i] * number_of_contours + contour_after[j]] = distance;
-                d_distance_matrix[contour_after[j] * number_of_contours + contour_before[i]] = distance;
+            if (!(contour_before[i] == contour_after[j] || contour_before[i] >= number_of_contours || contour_after[j] >= number_of_contours)){
+                uint32_t distance = (before[i].x - after[j].x) * (before[i].x - after[j].x) + (before[i].y - after[j].y) * (before[i].y - after[j].y);
+                if ((int)d_distance_matrix[contour_before[i] * number_of_contours + contour_after[j]] == -1 || d_distance_matrix[contour_before[i] * number_of_contours + contour_after[j]] > distance){
+                    d_distance_matrix[contour_before[i] * number_of_contours + contour_after[j]] = distance;
+                    d_distance_matrix[contour_after[j] * number_of_contours + contour_before[i]] = distance;
+                }
             }
         }
     }
@@ -133,7 +134,7 @@ void order_cluster_by_distance_wrapper(point * d_contours, int * h_contours_size
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&time, start, stop);
-    int write_accesses = sizes->number_of_contours * sizes->number_of_contours;
+    int write_accesses = nels * KERNEL_SIZE_ORDER * KERNEL_SIZE_ORDER * 2;
     uint64_t read_accesses = nels * 2 * KERNEL_SIZE_ORDER;
     printf("Distance matrix time: %f\n", time);
     printf("GE/s: %f\n", (float)nels / time / 1e06);

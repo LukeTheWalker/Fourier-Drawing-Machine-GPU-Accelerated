@@ -2,7 +2,7 @@
 #define FILTER_CONTOUR_DUPLICATE_H
 
 #define PRINT_DUP_FLAGS 0
-#define PROFILE_DUP 1
+#define PROFILE_DUP 0
 #define KERNEL_SIZE_DUP 64
 
 #include <cuda.h>

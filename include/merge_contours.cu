@@ -49,7 +49,7 @@ __global__ void reverse_lookup_contours (int * d_scanned_sizes, int * d_reverse_
     }
 }
 
-__global__ void compute_closeness_matrix (point * d_contours, int * d_reverse_lookup, char * d_closeness_matrix, int nquarts_contours_linear_size, int number_of_contours, int merge_distance){
+__global__ void compute_closeness_matrix (point * d_contours, int * d_reverse_lookup, char * d_closeness_matrix, int nquarts_contours_linear_size, int contours_linear_size, int number_of_contours, int merge_distance){
     uint64_t gi = threadIdx.x + blockIdx.x * blockDim.x;
     uint64_t n_comparison = ((uint64_t)nquarts_contours_linear_size * ((uint64_t)nquarts_contours_linear_size - 1)) / 2;
 
@@ -62,11 +62,19 @@ __global__ void compute_closeness_matrix (point * d_contours, int * d_reverse_lo
 
     point before [KERNEL_SIZE_MERGE];
     int contour_before [KERNEL_SIZE_MERGE];
-    for (int i = 0; i < KERNEL_SIZE_MERGE; i++) {before[i] = d_contours[quarts_1 * KERNEL_SIZE_MERGE + i]; contour_before[i] = d_reverse_lookup[quarts_1 * KERNEL_SIZE_MERGE + i];}
+    for (int i = 0; i < KERNEL_SIZE_MERGE; i++) {
+        if (quarts_1 * KERNEL_SIZE_MERGE + i >= contours_linear_size) { contour_before[i] = number_of_contours; continue; }
+        before[i] = d_contours[quarts_1 * KERNEL_SIZE_MERGE + i]; 
+        contour_before[i] = d_reverse_lookup[quarts_1 * KERNEL_SIZE_MERGE + i];
+    }
 
     point after [KERNEL_SIZE_MERGE];
     int contour_after [KERNEL_SIZE_MERGE];
-    for (int i = 0; i < KERNEL_SIZE_MERGE; i++) {after[i] = d_contours[quarts_2 * KERNEL_SIZE_MERGE + i]; contour_after[i] = d_reverse_lookup[quarts_2 * KERNEL_SIZE_MERGE + i];}
+    for (int i = 0; i < KERNEL_SIZE_MERGE; i++) {
+        if (quarts_2 * KERNEL_SIZE_MERGE + i >= contours_linear_size) { contour_after[i] = number_of_contours; continue; }
+        after[i] = d_contours[quarts_2 * KERNEL_SIZE_MERGE + i]; 
+        contour_after[i] = d_reverse_lookup[quarts_2 * KERNEL_SIZE_MERGE + i];
+    }
 
     for (int i = 0; i < KERNEL_SIZE_MERGE; i++){
         for (int j = 0; j < KERNEL_SIZE_MERGE; j++) {
@@ -203,7 +211,7 @@ void merge_contours_wrapper(point * d_contours, int * h_contours_size, int merge
     cudaEventRecord(start);
     #endif
 
-    compute_closeness_matrix<<<gws, closeness_lws>>>(d_contours, d_reverse_lookup, d_closeness_matrix, nquarts, sizes->number_of_contours, merge_distance);
+    compute_closeness_matrix<<<gws, closeness_lws>>>(d_contours, d_reverse_lookup, d_closeness_matrix, nquarts, sizes->contours_linear_size, sizes->number_of_contours, merge_distance);
 
     #if PROFILING_MERGE
     cudaEventRecord(stop);

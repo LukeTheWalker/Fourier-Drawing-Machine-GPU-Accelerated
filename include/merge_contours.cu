@@ -347,11 +347,13 @@ void merge_contours_wrapper(point * d_contours, int * h_contours_size, int merge
     free(cumulative_poisitions);
 
     err = cudaFree(d_scanned_sizes); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaFree(d_contours_sizes); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_reverse_lookup); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_starts_at); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_contours_out); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_cumulative_poisitions); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_merge_to); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaFree(d_closeness_matrix); cuda_err_check(err, __FILE__, __LINE__);
 
     #if PROFILING_MERGE
     cudaEventDestroy(start);

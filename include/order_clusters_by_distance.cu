@@ -19,7 +19,7 @@
 #include "streamCompaction.cu"
 #include "merge_contours.cu"
 
-__global__ void compute_distance_matrix(point * d_contours, int * d_reverse_lookup, uint32_t * d_distance_matrix, int nquarts_contours_linear_size, int number_of_contours){
+__global__ void compute_distance_matrix(point * d_contours, int * d_reverse_lookup, uint32_t * d_distance_matrix, int nquarts_contours_linear_size, int contours_linear_size, int number_of_contours){
     uint64_t gi = threadIdx.x + blockIdx.x * blockDim.x;
     uint64_t n_comparison = ((uint64_t)nquarts_contours_linear_size * ((uint64_t)nquarts_contours_linear_size - 1)) / 2;
 
@@ -32,11 +32,19 @@ __global__ void compute_distance_matrix(point * d_contours, int * d_reverse_look
 
     point before [KERNEL_SIZE_ORDER];
     int contour_before [KERNEL_SIZE_ORDER];
-    for (int i = 0; i < KERNEL_SIZE_ORDER; i++) {before[i] = d_contours[quarts_1 * KERNEL_SIZE_ORDER + i]; contour_before[i] = d_reverse_lookup[quarts_1 * KERNEL_SIZE_ORDER + i];}
+    for (int i = 0; i < KERNEL_SIZE_ORDER; i++) {
+        if (quarts_1 * KERNEL_SIZE_MERGE + i >= contours_linear_size) { contour_before[i] = number_of_contours; continue; }
+        before[i] = d_contours[quarts_1 * KERNEL_SIZE_ORDER + i]; 
+        contour_before[i] = d_reverse_lookup[quarts_1 * KERNEL_SIZE_ORDER + i];
+    }
 
     point after [KERNEL_SIZE_ORDER];
     int contour_after [KERNEL_SIZE_ORDER];
-    for (int i = 0; i < KERNEL_SIZE_ORDER; i++) {after[i] = d_contours[quarts_2 * KERNEL_SIZE_ORDER + i]; contour_after[i] = d_reverse_lookup[quarts_2 * KERNEL_SIZE_ORDER + i];}
+    for (int i = 0; i < KERNEL_SIZE_ORDER; i++) {
+        if (quarts_2 * KERNEL_SIZE_MERGE + i >= contours_linear_size) { contour_after[i] = number_of_contours; continue; }
+        after[i] = d_contours[quarts_2 * KERNEL_SIZE_ORDER + i]; 
+        contour_after[i] = d_reverse_lookup[quarts_2 * KERNEL_SIZE_ORDER + i];
+    }
 
      for (int i = 0; i < KERNEL_SIZE_ORDER; i++){
         for (int j = 0; j < KERNEL_SIZE_ORDER; j++) {
@@ -119,7 +127,7 @@ void order_cluster_by_distance_wrapper(point * d_contours, int * h_contours_size
     err = cudaMalloc((void **)&d_distance_matrix, sizeof(uint32_t) * sizes->number_of_contours * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemset(d_distance_matrix, -1, sizeof(uint32_t) * sizes->number_of_contours * sizes->number_of_contours); cuda_err_check(err, __FILE__, __LINE__); 
 
-    uint64_t nquarts = round_div_up_64((uint64_t)sizes->contours_linear_size, KERNEL_SIZE_ORDER);
+    uint64_t nquarts = round_div_up_64((uint64_t)sizes->contours_linear_size, KERNEL_SIZE_ORDER) - 1;
     uint64_t nels = (nquarts * (nquarts - 1)) / 2;
     uint64_t distance_lws = 256;
     uint64_t gws = round_div_up_64(nels, distance_lws);
@@ -128,7 +136,7 @@ void order_cluster_by_distance_wrapper(point * d_contours, int * h_contours_size
     cudaEventRecord(start);
     #endif
 
-    compute_distance_matrix<<<gws, distance_lws>>>(d_contours, d_reverse_lookup, d_distance_matrix, nquarts, sizes->number_of_contours);
+    compute_distance_matrix<<<gws, distance_lws>>>(d_contours, d_reverse_lookup, d_distance_matrix, nquarts, sizes->contours_linear_size, sizes->number_of_contours);
 
     #if PROFILE_ORDER_CLUSTER_BY_DISTANCE
     cudaEventRecord(stop);

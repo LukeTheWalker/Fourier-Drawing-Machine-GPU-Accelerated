@@ -91,7 +91,7 @@ void fix_contours (point * d_contours, int * d_contours_sizes, int * d_contours_
 
     #if PRINT_MIN
     printf("Scanned sizes:  ");
-    print_array_dev(d_scanned_sizes, number_of_contours);
+    print_array_dev(d_scanned_sizes, sizes->number_of_contours);
     printf("\n");
     #endif
 
@@ -152,7 +152,7 @@ void fix_contours (point * d_contours, int * d_contours_sizes, int * d_contours_
 
     #if PRINT_MIN
     printf("Contour x before:   ");
-    print_array_dev(d_contours_x, contours_linear_size);
+    print_array_dev(d_contours, contours_linear_size);
     printf("\n");
     #endif
 
@@ -162,7 +162,7 @@ void fix_contours (point * d_contours, int * d_contours_sizes, int * d_contours_
 
     #if PRINT_MIN
     printf("Contour x computed: ");
-    print_array_dev(d_contours_x_out, contours_linear_size);
+    print_array_dev(d_contours_out, contours_linear_size);
     printf("\n");
     #endif
 
@@ -191,7 +191,7 @@ void filter_vector_by_min_wrapper(point * d_contours, int * h_contours_sizes, in
 
     #if PRINT_MIN
     printf("Contour sizes:  ");
-    print_array_dev(d_contours_sizes, number_of_contours);
+    print_array_dev(d_contours_sizes, sizes->number_of_contours);
     printf("\n");
     #endif
 
@@ -202,7 +202,7 @@ void filter_vector_by_min_wrapper(point * d_contours, int * h_contours_sizes, in
 
     #if PRINT_MIN
     printf("Flags computed: ");
-    print_array_dev(d_flags, number_of_contours);
+    print_array_dev(d_flags, sizes->number_of_contours);
     printf("\n");
     #endif
 
@@ -249,6 +249,12 @@ void filter_vector_by_min_wrapper(point * d_contours, int * h_contours_sizes, in
     #if PRINT_MIN
     printf("contours_sizes: ");
     print_array_dev(d_contours_sizes_out, sizes->number_of_contours);
+    printf("\n");
+    #endif
+
+    #if PRINT_MIN
+    printf("contours out:   ");
+    print_array_dev(d_contours, sizes->contours_linear_size);
     printf("\n");
     #endif
 

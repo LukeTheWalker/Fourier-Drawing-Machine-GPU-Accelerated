@@ -215,6 +215,7 @@ void cpu_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & con
     #endif
 }
 
+/*
 void get_cuda_timings (int * d_contours_x, int * d_contours_y, int * h_contours_sizes, vector<vector<Point>> & contours, unordered_set<Point, HashFunction> & excluded_points, Sizes * sizes, double merging_distance, int min_size){
     cudaEvent_t start, stop;
     cudaError_t err;
@@ -315,9 +316,10 @@ void get_cuda_timings (int * d_contours_x, int * d_contours_y, int * h_contours_
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
 }
+*/
 
 void cuda_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & contours, unordered_set<Point, HashFunction> & excluded_points, double merging_distance, int min_size) {
-    int *d_contours_x, *d_contours_y;
+    point *d_contours;
     int *h_contours_sizes;
     cudaError_t err;
     Sizes * sizes;
@@ -328,19 +330,18 @@ void cuda_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & co
 
     for (int i = 0; i < contours.size(); i++) sizes->contours_linear_size += contours[i].size();
 
-    err = cudaMalloc((void **)&d_contours_x, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_contours_y, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_contours, sizes->contours_linear_size * sizeof(point)); cuda_err_check(err, __FILE__, __LINE__);
 
     h_contours_sizes = (int*)malloc(sizes->number_of_contours * sizeof(int));
 
     for (int i = 0; i < sizes->number_of_contours; i++) h_contours_sizes[i] = contours[i].size();
 
     #if 1
-    filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, 64, 256); 
-    filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes, 256, 128);
-    filter_contour_duplicate_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 1024, 128);
-    merge_contours_wrapper(d_contours_x, d_contours_y, h_contours_sizes, merging_distance, sizes, 32);
-    order_cluster_by_distance_wrapper(d_contours_x, d_contours_y, h_contours_sizes, sizes, 32);
+    filter_contour_by_hand_wrapper(d_contours, h_contours_sizes, contours, excluded_points, sizes, 64, 256); 
+    filter_vector_by_min_wrapper(d_contours, h_contours_sizes, min_size, sizes, 256, 128);
+    filter_contour_duplicate_wrapper(d_contours, h_contours_sizes, sizes, 1024, 128);
+    merge_contours_wrapper(d_contours, h_contours_sizes, merging_distance, sizes, 32);
+    order_cluster_by_distance_wrapper(d_contours, h_contours_sizes, sizes, 32);
     // cout << funcTime(filter_contour_by_hand_wrapper, d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes, 64, 256) << " filter contour by hand" << endl;
     // cout << funcTime(filter_vector_by_min_wrapper, d_contours_x, d_contours_y, h_contours_sizes, min_size, sizes, 256, 128) << " filter vector by min" << endl;
     // cout << funcTime(filter_contour_duplicate_wrapper, d_contours_x, d_contours_y, h_contours_sizes, sizes, 1024, 128) << " filter contour duplicate" << endl;
@@ -351,11 +352,10 @@ void cuda_pipeline(vector<vector <Point> > & points, vector<vector<Point> > & co
     #endif
 
     vector<vector<Point>> after_filter_contours;
-    get_after_filter_contours(after_filter_contours, d_contours_x, d_contours_y, sizes->contours_linear_size, h_contours_sizes, sizes->number_of_contours);
+    get_after_filter_contours(after_filter_contours, d_contours, sizes->contours_linear_size, h_contours_sizes, sizes->number_of_contours);
     points = after_filter_contours;
 
-    err = cudaFree(d_contours_x); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaFree(d_contours_y); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaFree(d_contours); cuda_err_check(err, __FILE__, __LINE__);
     free(h_contours_sizes);
     free(sizes);
 
@@ -484,7 +484,7 @@ Thresholds get_treshold(string file_name, Mat & src)
         int x, y;
         while (file >> x >> y){
             tresholds.excluded_points.insert(Point(x * 2, y * 2));
-            tresholds.excluded_points.insert(Point(x * 2 + 1, y * 2));
+            tresholds.excluded_points.insert(Point(x * 2+ 1, y * 2));
             tresholds.excluded_points.insert(Point(x * 2, y * 2 + 1));
             tresholds.excluded_points.insert(Point(x * 2 + 1, y * 2 + 1));
         }
@@ -504,6 +504,7 @@ Thresholds get_treshold(string file_name, Mat & src)
                 file << point.x << " " << point.y << endl;
             }
             file.close();
+            exit(EXIT_SUCCESS);
         }
     }
     return tresholds;

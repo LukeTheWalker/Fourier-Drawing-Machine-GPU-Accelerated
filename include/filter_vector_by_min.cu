@@ -62,7 +62,7 @@ __global__ void fill_afference_array (int * d_scanned_sizes, int * d_flags, int 
     }
 }
 
-void fix_contours (int * d_contours_x, int * d_contours_y, int * d_contours_sizes, int * d_contours_flags, Sizes * sizes, int ngroups, int lws){
+void fix_contours (point * d_contours, int * d_contours_sizes, int * d_contours_flags, Sizes * sizes, int ngroups, int lws){
     int * d_scanned_sizes;
     
     #if PROFILE_MIN
@@ -91,7 +91,7 @@ void fix_contours (int * d_contours_x, int * d_contours_y, int * d_contours_size
 
     #if PRINT_MIN
     printf("Scanned sizes:  ");
-    print_array_dev(d_scanned_sizes, number_of_contours);
+    print_array_dev(d_scanned_sizes, sizes->number_of_contours);
     printf("\n");
     #endif
 
@@ -140,10 +140,9 @@ void fix_contours (int * d_contours_x, int * d_contours_y, int * d_contours_size
         err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     }
 
-    int * d_contours_x_out, * d_contours_y_out;
-    
-    err = cudaMalloc((void **)&d_contours_x_out, sizeof(int) * contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_contours_y_out, sizeof(int) * contours_linear_size); cuda_err_check(err, __FILE__, __LINE__);
+    point * d_contours_out;
+
+    err = cudaMalloc((void **)&d_contours_out, contours_linear_size * sizeof(point)); cuda_err_check(err, __FILE__, __LINE__);
 
     #if PRINT_MIN
     printf("Positions computed: ");
@@ -153,27 +152,25 @@ void fix_contours (int * d_contours_x, int * d_contours_y, int * d_contours_size
 
     #if PRINT_MIN
     printf("Contour x before:   ");
-    print_array_dev(d_contours_x, contours_linear_size);
+    print_array_dev(d_contours, contours_linear_size);
     printf("\n");
     #endif
 
-    move_contours<<<round_div_up(contours_linear_size, lws), lws>>>(d_contours_x, d_contours_y, d_contours_x_out, d_contours_y_out, d_flags, d_positions, contours_linear_size);
+    move_contours<<<round_div_up(contours_linear_size, lws), lws>>>(d_contours, d_contours_out, d_flags, d_positions, contours_linear_size);
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
     #if PRINT_MIN
     printf("Contour x computed: ");
-    print_array_dev(d_contours_x_out, contours_linear_size);
+    print_array_dev(d_contours_out, contours_linear_size);
     printf("\n");
     #endif
 
-    err = cudaMemcpy(d_contours_x, d_contours_x_out, sizeof(int) * contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(d_contours_y, d_contours_y_out, sizeof(int) * contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(d_contours, d_contours_out, sizeof(point) * contours_linear_size, cudaMemcpyDeviceToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
     err = cudaMemcpy(&(sizes->contours_linear_size), &d_scanned_sizes[sizes->number_of_contours - 1], sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
 
-    err = cudaFree(d_contours_x_out); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaFree(d_contours_y_out); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaFree(d_contours_out); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_positions); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_tails); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaFree(d_flags); cuda_err_check(err, __FILE__, __LINE__);
@@ -182,7 +179,7 @@ void fix_contours (int * d_contours_x, int * d_contours_y, int * d_contours_size
     return;
 }
 
-void filter_vector_by_min_wrapper(int * d_contours_x, int * d_contours_y, int * h_contours_sizes, int min_size, Sizes * sizes, int ngroups = 1024, int lws = 256){
+void filter_vector_by_min_wrapper(point * d_contours, int * h_contours_sizes, int min_size, Sizes * sizes, int ngroups = 1024, int lws = 256){
     cudaError_t err;
     int * d_contours_sizes;
     int * d_flags;
@@ -194,7 +191,7 @@ void filter_vector_by_min_wrapper(int * d_contours_x, int * d_contours_y, int * 
 
     #if PRINT_MIN
     printf("Contour sizes:  ");
-    print_array_dev(d_contours_sizes, number_of_contours);
+    print_array_dev(d_contours_sizes, sizes->number_of_contours);
     printf("\n");
     #endif
 
@@ -205,7 +202,7 @@ void filter_vector_by_min_wrapper(int * d_contours_x, int * d_contours_y, int * 
 
     #if PRINT_MIN
     printf("Flags computed: ");
-    print_array_dev(d_flags, number_of_contours);
+    print_array_dev(d_flags, sizes->number_of_contours);
     printf("\n");
     #endif
 
@@ -244,7 +241,7 @@ void filter_vector_by_min_wrapper(int * d_contours_x, int * d_contours_y, int * 
     err = cudaDeviceSynchronize(); cuda_err_check(err, __FILE__, __LINE__);
 
     // now let's fix the x and y coordinates
-    fix_contours(d_contours_x, d_contours_y, d_contours_sizes, d_flags, sizes, ngroups, lws);
+    fix_contours(d_contours, d_contours_sizes, d_flags, sizes, ngroups, lws);
 
     err = cudaMemcpy(h_contours_sizes, d_contours_sizes_out, sizeof(int) * sizes->number_of_contours, cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMemcpy(&(sizes->number_of_contours), d_positions + sizes->number_of_contours - 1, sizeof(int), cudaMemcpyDeviceToHost); cuda_err_check(err, __FILE__, __LINE__);
@@ -252,6 +249,12 @@ void filter_vector_by_min_wrapper(int * d_contours_x, int * d_contours_y, int * 
     #if PRINT_MIN
     printf("contours_sizes: ");
     print_array_dev(d_contours_sizes_out, sizes->number_of_contours);
+    printf("\n");
+    #endif
+
+    #if PRINT_MIN
+    printf("contours out:   ");
+    print_array_dev(d_contours, sizes->contours_linear_size);
     printf("\n");
     #endif
 
@@ -337,7 +340,7 @@ void test2() {
     // filter_vector_by_min_wrapper(d_contours_x, d_contours_y, h_contours_sizes, number_of_countours, min_size);
 
     vector<vector<Point>> after_filter_contours;
-    get_after_filter_contours(after_filter_contours, d_contours_x, d_contours_y, contours_linear_size, h_contours_sizes, number_of_countours);
+    // get_after_filter_contours(after_filter_contours, d_contours_x, d_contours_y, contours_linear_size, h_contours_sizes, number_of_countours);
     contours = after_filter_contours;
 
     err = cudaFree(d_contours_x); cuda_err_check(err, __FILE__, __LINE__);

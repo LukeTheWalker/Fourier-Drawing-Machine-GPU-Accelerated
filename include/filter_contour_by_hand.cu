@@ -21,84 +21,69 @@
 using namespace std;
 
 struct check_array_membership {
-    #if not MANUAL_COUNTER
-    __device__ int4 operator()(int gi, int4 * dat_x_arr, int4 * dat_y_arr, int4 * arr_x, int4 * arr_y, int n_quart_array) {
-    #else
-    __device__ int4 operator()(int gi, int4 * dat_x_arr, int4 * dat_y_arr, int4 * arr_x, int4 * arr_y, int n_quart_array, unsigned long long int * cnt) {
-    #endif
-        int4 res = {0, 0, 0, 0};
-        int4 dat_x = dat_x_arr[gi];
-        int4 dat_y = dat_y_arr[gi];
-        for (int i = 0; i < n_quart_array; i++){
-            #if MANUAL_COUNTER
-            atomicAdd(cnt, 1);
-            #endif
-            int4 arr_x_i = arr_x[i];
-            int4 arr_y_i = arr_y[i];
-            res.x = res.x || (dat_x.x == arr_x_i.x && dat_y.x == arr_y_i.x) || (dat_x.x == arr_x_i.y && dat_y.x == arr_y_i.y) || (dat_x.x == arr_x_i.z && dat_y.x == arr_y_i.z) || (dat_x.x == arr_x_i.w && dat_y.x == arr_y_i.w);
-            res.y = res.y || (dat_x.y == arr_x_i.x && dat_y.y == arr_y_i.x) || (dat_x.y == arr_x_i.y && dat_y.y == arr_y_i.y) || (dat_x.y == arr_x_i.z && dat_y.y == arr_y_i.z) || (dat_x.y == arr_x_i.w && dat_y.y == arr_y_i.w);
-            res.z = res.z || (dat_x.z == arr_x_i.x && dat_y.z == arr_y_i.x) || (dat_x.z == arr_x_i.y && dat_y.z == arr_y_i.y) || (dat_x.z == arr_x_i.z && dat_y.z == arr_y_i.z) || (dat_x.z == arr_x_i.w && dat_y.z == arr_y_i.w);
-            res.w = res.w || (dat_x.w == arr_x_i.x && dat_y.w == arr_y_i.x) || (dat_x.w == arr_x_i.y && dat_y.w == arr_y_i.y) || (dat_x.w == arr_x_i.z && dat_y.w == arr_y_i.z) || (dat_x.w == arr_x_i.w && dat_y.w == arr_y_i.w);
+    __device__ int4 operator()(int gi, point2 * dat_arr, point2 * arr, int array_size) {
+        int4 res = {1, 1, 1, 1};
+        point2 dat_12 = dat_arr[gi * 2];
+        point2 dat_34 = dat_arr[gi * 2 + 1];
+
+        for (int i = 0; i < round_div_up_dev(array_size, 2); i++){
+            point2 p = arr[i];
+            res.x = res.x && ((p.x ^ dat_12.x) | (p.y ^ dat_12.y)) && ((p.z ^ dat_12.x) | (p.w ^ dat_12.y));
+            res.y = res.y && ((p.x ^ dat_12.z) | (p.y ^ dat_12.w)) && ((p.z ^ dat_12.z) | (p.w ^ dat_12.w));
+            res.z = res.z && ((p.x ^ dat_34.x) | (p.y ^ dat_34.y)) && ((p.z ^ dat_34.x) | (p.w ^ dat_34.y));
+            res.w = res.w && ((p.x ^ dat_34.z) | (p.y ^ dat_34.w)) && ((p.z ^ dat_34.z) | (p.w ^ dat_34.w));
         }
-        return {!res.x, !res.y, !res.z, !res.w};
+        return {res.x, res.y, res.z, res.w};
     }
 };
 
-void load_contours_to_device (int * d_contours_x, int * d_contours_y, vector<vector<Point>> &contours, Sizes * sizes) {
-    int *h_contours_x, *h_contours_y;
+void load_contours_to_device (point * d_contours, vector<vector<Point>> &contours, Sizes * sizes) {
+    point *h_contours;
     cudaError_t err;
 
-    h_contours_x = (int *)malloc(sizes->contours_linear_size * sizeof(int));
-    h_contours_y = (int *)malloc(sizes->contours_linear_size * sizeof(int));
+    h_contours = (point *)malloc(sizes->contours_linear_size * sizeof(point));
+    
 
     int idx = 0;
     for (int i = 0; i < sizes->number_of_contours; i++){
         for (int j = 0; j < contours[i].size(); j++){
-            h_contours_x[idx] = contours[i][j].x;
-            h_contours_y[idx] = contours[i][j].y;
+            h_contours[idx] = {contours[i][j].x, contours[i][j].y};
+
             idx++;
         }
     }
     
-    err = cudaMemcpy(d_contours_x, h_contours_x, sizes->contours_linear_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(d_contours_y, h_contours_y, sizes->contours_linear_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(d_contours, h_contours, sizes->contours_linear_size * sizeof(point), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
     
-    free(h_contours_x);
-    free(h_contours_y);   
+    free(h_contours);
 }
 
-void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_out, int * h_contours_sizes_out, vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points, Sizes * sizes, int ngroups = 1024, int lws = 256){
-    int *d_excluded_points_x, *d_excluded_points_y, *d_contours_x, *d_contours_y;
-    int *h_excluded_points_x, *h_excluded_points_y;
+void filter_contour_by_hand_wrapper(point * d_contours_out, int * h_contours_sizes_out, vector<vector<Point>> &contours, unordered_set<Point, HashFunction> &_excluded_points, Sizes * sizes, int ngroups = 1024, int lws = 256){
+    point *d_excluded_points, *d_contours;
+    point *h_excluded_points;
     int *d_flags;
     int excluded_points_size = _excluded_points.size();
     cudaError_t err;
 
     // allocate memory on the host for all the points
-    h_excluded_points_x = (int *)malloc(excluded_points_size * sizeof(int));
-    h_excluded_points_y = (int *)malloc(excluded_points_size * sizeof(int));
+    h_excluded_points= (point *)malloc(excluded_points_size * sizeof(point));
     
-    err = cudaMalloc((void **)&d_contours_x, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_contours_y, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_contours, sizes->contours_linear_size * sizeof(point)); cuda_err_check(err, __FILE__, __LINE__);
 
-    load_contours_to_device(d_contours_x, d_contours_y, contours, sizes);
+    load_contours_to_device(d_contours, contours, sizes);
 
     int idx = 0;
     for (auto it = _excluded_points.begin(); it != _excluded_points.end(); it++){
-        h_excluded_points_x[idx] = it->x;
-        h_excluded_points_y[idx] = it->y;
+        h_excluded_points[idx] = {it->x, it->y};
         idx++;
     }
 
-    err = cudaMalloc((void **)&d_excluded_points_x, excluded_points_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMalloc((void **)&d_excluded_points_y, excluded_points_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMalloc((void **)&d_excluded_points, excluded_points_size * sizeof(point)); cuda_err_check(err, __FILE__, __LINE__);
     err = cudaMalloc((void **)&d_flags, sizes->contours_linear_size * sizeof(int)); cuda_err_check(err, __FILE__, __LINE__);
 
-    err = cudaMemcpy(d_excluded_points_x, h_excluded_points_x, excluded_points_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
-    err = cudaMemcpy(d_excluded_points_y, h_excluded_points_y, excluded_points_size * sizeof(int), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
+    err = cudaMemcpy(d_excluded_points, h_excluded_points, excluded_points_size * sizeof(point), cudaMemcpyHostToDevice); cuda_err_check(err, __FILE__, __LINE__);
 
     int nquarts_flags = round_div_up(sizes->contours_linear_size, 4);
-    int nquarts_excluded_points = round_div_up(excluded_points_size, 4);
 
     #if MANUAL_COUNTER
     unsigned long long int * d_cnt;
@@ -113,8 +98,8 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
     cudaEventRecord(start);
     #endif
 
-    compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, (int4*)d_contours_x, (int4*)d_contours_y, (int4*)d_excluded_points_x, (int4*)d_excluded_points_y, nquarts_excluded_points);
-
+    compute_flags<check_array_membership><<<round_div_up(nquarts_flags, 256), 256>>>(nquarts_flags, (int4*)d_flags, (point2 *)d_contours, (point2*)d_excluded_points, excluded_points_size);
+    
     #if PROFILING_HAND
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
@@ -124,12 +109,11 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
     cout << "cnt: " << cnt << " nquarts_flags: " << nquarts_flags  << " nquarts_excluded_points: " << nquarts_excluded_points << " moltiplication: " << (uint64_t)nquarts_flags * (uint64_t)nquarts_excluded_points << endl;
     #endif
     float milliseconds = 0;
-    double wrapper_time = (float)sizes->contours_linear_size * sizeof(int) * 2;
-    double nested_loop_time = (uint64_t)nquarts_flags * (uint64_t)nquarts_excluded_points * 2 * sizeof(int4) / 8;
+    uint64_t byte_accesses = nquarts_flags * (sizeof(int4) + 2 * sizeof(point2) + excluded_points_size /*/ 8*/ * sizeof(point));
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("compute_flags hand time: %f\n", milliseconds);
     printf("GE/s: %f\n", (float)sizes->contours_linear_size / milliseconds / 1e6);
-    printf("GB/s: %f\n", (wrapper_time + nested_loop_time) / milliseconds / 1e6);
+    printf("GB/s: %f\n", (double)byte_accesses / milliseconds / 1e6);
     #endif
 
     err = cudaGetLastError(); cuda_err_check(err, __FILE__, __LINE__);
@@ -141,15 +125,12 @@ void filter_contour_by_hand_wrapper(int * d_contours_x_out, int * d_contours_y_o
     printf("\n");
     #endif
 
-    filter_contour(d_contours_x, d_contours_y, h_contours_sizes_out, d_contours_x_out, d_contours_y_out, d_flags, sizes, ngroups, lws);
+    filter_contour(d_contours, h_contours_sizes_out, d_contours_out, d_flags, sizes, ngroups, lws);
 
-    free(h_excluded_points_x);
-    free(h_excluded_points_y);
+    free(h_excluded_points);
 
-    cudaFree(d_contours_x);
-    cudaFree(d_contours_y);
-    cudaFree(d_excluded_points_x);
-    cudaFree(d_excluded_points_y);
+    cudaFree(d_contours);
+    cudaFree(d_excluded_points);
     cudaFree(d_flags);
 
     #if PROFILING_HAND
@@ -213,7 +194,8 @@ int test() {
 
     for (int i = 0; i < sizes->number_of_contours; i++) h_contours_sizes[i] = contours[i].size();
 
-    filter_contour_by_hand_wrapper(d_contours_x, d_contours_y, h_contours_sizes, contours, excluded_points, sizes);
+
+    // filter_contour_by_hand_wrapper(d_contours, d_contours_y, h_contours_sizes, contours, excluded_points, sizes);
 
     for (int i = 0; i < contours.size(); i++){
         for (int j = 0; j < contours[i].size(); j++){

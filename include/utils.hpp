@@ -5,17 +5,12 @@
 #include <iostream>
 #include <string>
 #include <set>
-#include <cuda.h>
-#include <cuda_runtime_api.h>
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
 
 using namespace cv;
 using namespace std;
-
-typedef int2 point;
-typedef int4 point2;
 
 template <typename T>
 Mat& draw_points(Mat &img, const vector<Point> &points)
@@ -99,19 +94,6 @@ void print_vector(std::vector<T> vec)
   for (T d : vec)
     std::cout << d << " ";
   std::cout << std::endl;
-}
-
-void cuda_err_check (cudaError_t err, const char *file, int line);
-
-template<typename T>
-void print_array_dev (T * d_a, int n) {
-    for (int i = 0; i < n; i++){
-        T tail;
-        // printf("Accessing address %p\n", d_a+i);
-        cudaError_t err = cudaMemcpy(&tail, d_a+i, sizeof(T), cudaMemcpyDeviceToHost);
-        cuda_err_check(err, __FILE__, __LINE__);
-        printf("%u ", tail);
-    }
 }
 
 string type2str(int);

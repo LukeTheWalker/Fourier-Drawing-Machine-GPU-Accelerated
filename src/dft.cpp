@@ -7,7 +7,7 @@
 #include <complex>
 #include <gmpxx.h>
 #include "opencv2/imgproc.hpp"
-#include "utils.cuh"
+#include "utils.hpp"
 #include "dft.hpp"
 
 using namespace std;

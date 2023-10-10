@@ -4,13 +4,7 @@ IDIR = include
 SDIR = src
 BINDIR = bin
 
-ifeq ($(shell which nvcc),)	
-	CXX := g++
-else
-	CXX := nvcc
-	CUFLAGS := -arch=sm_86
-	CULDFLAGS := -lcuda
-endif
+CXX := g++
 
 CXXFLAGS= -I$(IDIR) -std=c++17 -g -O3 $(CUFLAGS) $(CV_FLAGS)
 LDFLAGS = $(GMP) $(CV_LIBS) $(CULDFLAGS)
@@ -20,10 +14,8 @@ CV_LIBS = `pkg-config --libs opencv4`
 GMP = -lgmp -lgmpxx
 
 DATADIR = data
-# create_data_folder := $(shell mkdir -p $(DATADIR))
 
 ODIR=obj
-# create_build_folder := $(shell mkdir -p $(ODIR))
 
 OUT_DIR=output
 
@@ -38,7 +30,6 @@ CXXFILES = $(notdir $(_CXXFILES))
 _OBJ = $(_CUFILES:.cu=.o) $(_CXXFILES:.cpp=.o)
 OBJ = $(patsubst $(SDIR)/%,$(ODIR)/%,$(_OBJ))
 
-# create_bin_folder := $(shell mkdir -p $(BINDIR))
 TARGET = $(BINDIR)/app
 
 UNAME_S := $(shell uname -s)
